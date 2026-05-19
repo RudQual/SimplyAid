@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { getIncidentStats, getIncidents, getComplianceStatus } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getIncidentStats, getIncidents, getComplianceStatus } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { AlertTriangle, ShieldCheck, Clock, TrendingUp, Plus, ClipboardCheck, FileBarChart, Activity } from 'lucide-react';
 import './Dashboard.css';

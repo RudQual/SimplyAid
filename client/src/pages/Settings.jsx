@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { changePassword } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { changePassword } from '../services/api';
 import { Globe, Lock, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 

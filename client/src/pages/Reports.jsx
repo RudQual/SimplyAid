@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getComplianceStatus, getDepartmentSummary, getAccidentRegister } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getComplianceStatus, getDepartmentSummary, getAccidentRegister } from '../services/api';
 import { ShieldCheck, CheckCircle, XCircle, Download, FileText } from 'lucide-react';
 
 const Reports = () => {

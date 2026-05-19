@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Heart, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import './Login.css';
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { getIncidents, getDepartments } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getIncidents, getDepartments } from '../services/api';
 import { Plus, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Incidents = () => {

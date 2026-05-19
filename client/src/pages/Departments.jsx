@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../services/api';
 import { Plus, X, Edit2, Trash2, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 

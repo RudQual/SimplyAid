@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { createIncident, getDepartments, getUsers, getBoxes } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { createIncident, getDepartments, getUsers, getBoxes } from '../services/api';
 import { ArrowLeft, ArrowRight, Save, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 

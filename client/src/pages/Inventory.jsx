@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getBoxes, inspectBox } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getBoxes, inspectBox } from '../services/api';
 import { Package, MapPin, User, Calendar, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getUsers, getDepartments, registerUser } from '../../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getUsers, getDepartments, registerUser } from '../services/api';
 import { Search, Plus, X, UserPlus, Shield, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
 
