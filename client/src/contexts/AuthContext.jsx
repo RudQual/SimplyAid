@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loginUser as loginAPI, getMe } from '../services/api';
+import { loginUser as loginAPI, signupUser as signupAPI, getMe } from '../services/api';
 import translations from '../utils/translations';
 
 const AuthContext = createContext(null);
@@ -28,13 +28,23 @@ export const AuthProvider = ({ children }) => {
     } else { setLoading(false); }
   }, []);
 
-  const login = async (email, password) => {
-    const res = await loginAPI({ email, password });
+  // Helper to store auth response
+  const handleAuthResponse = (res) => {
     localStorage.setItem('simplyaid_token', res.data.token);
     localStorage.setItem('simplyaid_user', JSON.stringify(res.data.data));
     setUser(res.data.data);
     if (res.data.data.preferredLanguage) switchLang(res.data.data.preferredLanguage);
     return res.data;
+  };
+
+  const login = async (email, password) => {
+    const res = await loginAPI({ email, password });
+    return handleAuthResponse(res);
+  };
+
+  const signup = async (name, email, password) => {
+    const res = await signupAPI({ name, email, password });
+    return handleAuthResponse(res);
   };
 
   const logout = () => {
@@ -46,7 +56,7 @@ export const AuthProvider = ({ children }) => {
   const hasRole = (...roles) => user && roles.includes(user.role);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, hasRole, t, lang, switchLang }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, hasRole, t, lang, switchLang }}>
       {children}
     </AuthContext.Provider>
   );

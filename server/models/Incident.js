@@ -159,7 +159,7 @@ const incidentSchema = new mongoose.Schema({
 });
 
 // Auto-generate incident ID
-incidentSchema.pre('save', async function(next) {
+incidentSchema.pre('save', async function() {
   if (!this.incidentId) {
     const year = new Date().getFullYear();
     const count = await mongoose.model('Incident').countDocuments({
@@ -176,8 +176,6 @@ incidentSchema.pre('save', async function(next) {
   if (this.severity === 'fatal' || this.daysLost >= 2) {
     this.isReportable = true;
   }
-
-  next();
 });
 
 // Index for common queries

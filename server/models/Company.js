@@ -55,9 +55,8 @@ const companySchema = new mongoose.Schema({
 });
 
 // Auto-compute ambulance room requirement
-companySchema.pre('save', function(next) {
+companySchema.pre('save', function() {
   this.requiresAmbulanceRoom = this.totalWorkers >= 500;
-  next();
 });
 
 module.exports = mongoose.model('Company', companySchema);

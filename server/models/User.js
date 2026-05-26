@@ -32,8 +32,7 @@ const userSchema = new mongoose.Schema({
   },
   company: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: [true, 'Company is required']
+    ref: 'Company'
   },
   department: {
     type: mongoose.Schema.Types.ObjectId,
@@ -78,11 +77,10 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ employeeId: 1, company: 1 }, { unique: true, sparse: true });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+userSchema.pre('save', async function() {
+  if (!this.isModified('password') || !this.password) return;
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // Compare password method
