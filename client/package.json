@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.0.2",
     "vite": "^8.0.12"
   },
   "dependencies": {

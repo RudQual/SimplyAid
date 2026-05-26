@@ -9,7 +9,24 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Register a new user
+// Helper: get default company for self-registration
+const getDefaultCompany = async () => {
+  const company = await Company.findOne({ isActive: true }).sort({ createdAt: 1 });
+  return company ? company._id : null;
+};
+
+// Helper: login response — generates token and sends user data
+const sendAuthResponse = (res, user, statusCode = 200) => {
+  const token = generateToken(user._id);
+  user.password = undefined;
+  res.status(statusCode).json({
+    success: true,
+    token,
+    data: user
+  });
+};
+
+// @desc    Register a new user (admin-created)
 // @route   POST /api/auth/register
 // @access  Admin only (or first user = auto admin)
 exports.register = async (req, res, next) => {
@@ -59,6 +76,56 @@ exports.register = async (req, res, next) => {
   }
 };
 
+// @desc    Self sign-up (public)
+// @route   POST /api/auth/signup
+// @access  Public
+exports.signup = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide name, email and password'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email already exists'
+      });
+    }
+
+    // Auto-assign default company
+    const defaultCompany = await getDefaultCompany();
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: 'employee',
+      company: defaultCompany
+    });
+
+    // Populate company for response
+    await user.populate('company', 'name code');
+
+    sendAuthResponse(res, user, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Login user
 // @route   POST /api/auth/login
 // @access  Public
@@ -93,6 +160,8 @@ exports.login = async (req, res, next) => {
       });
     }
 
+
+
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
@@ -102,21 +171,13 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Generate token
-    const token = generateToken(user._id);
-
-    // Remove password from response
-    user.password = undefined;
-
-    res.json({
-      success: true,
-      token,
-      data: user
-    });
+    sendAuthResponse(res, user);
   } catch (error) {
     next(error);
   }
 };
+
+
 
 // @desc    Get current user profile
 // @route   GET /api/auth/me
