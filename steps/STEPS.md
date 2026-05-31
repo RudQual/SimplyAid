@@ -286,3 +286,22 @@ Implemented a workflow separating Admin (Doctor) and Employee (Worker) to prescr
 ### 7.3 Frontend UI (`pages/Prescriptions.jsx`)
 - **Doctor View:** "Add Prescription" button opens modal to assign items to workers.
 - **Worker View:** List of their prescriptions with "Take Dose" button, restricting them to take only up to the `prescribedQty`.
+
+---
+
+## STEP 8: Virtual Vending Machine & Employee ID (Kiosk Mode)
+Implemented a "Virtual Vending Machine" kiosk feature for testing medicine lock/unlock logic, alongside adding Employee ID support to signups.
+
+### 8.1 Employee ID in Sign-up
+- **Backend**: Updated `signup` in `authController.js` to accept `employeeId` and save it to the new `User` document.
+- **Frontend**: Added an "Employee ID (Optional)" field to the Signup mode in `Login.jsx`. Updated `AuthContext.jsx` to pass `employeeId` during registration.
+
+### 8.2 Vending Machine API
+- **Backend Routes (`routes/vendingRoutes.js`)**:
+  - `POST /api/vending/login`: Authenticates a worker based entirely on their `employeeId` to simulate a physical card swipe or keypad entry at the kiosk.
+  - `POST /api/vending/dispense`: Dispenses the item, securely validating that the item is prescribed to the employee, checking quantity limits, and automatically deducting from a designated `FirstAidBox`.
+
+### 8.3 Kiosk UI (`pages/VendingMachine.jsx`)
+- **Route**: Accessible at `/vending`.
+- **Login Screen**: A focused UI where the worker inputs their `Employee ID`.
+- **Dispense Dashboard**: A grid displaying "slots" for prescribed items. If the user has active prescriptions, they can click "Dispense". The UI simulates unlocking and updating the database in real-time.

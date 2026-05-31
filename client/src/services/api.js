@@ -75,4 +75,8 @@ export const getPrescriptions = () => API.get('/prescriptions');
 export const createPrescription = (data) => API.post('/prescriptions', data);
 export const consumePrescription = (id, data) => API.put(`/prescriptions/${id}/take`, data);
 
+// Vending Machine
+export const vendingLogin = (data) => API.post('/vending/login', data);
+export const vendingDispense = (data) => API.post('/vending/dispense', data);
+
 export default API;

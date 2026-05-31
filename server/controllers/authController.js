@@ -81,7 +81,7 @@ exports.register = async (req, res, next) => {
 // @access  Public
 exports.signup = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, employeeId } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -113,6 +113,7 @@ exports.signup = async (req, res, next) => {
       name,
       email,
       password,
+      employeeId,
       role: 'employee',
       company: defaultCompany
     });

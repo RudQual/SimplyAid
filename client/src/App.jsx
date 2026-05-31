@@ -15,6 +15,7 @@ import Departments from './pages/Departments';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Prescriptions from './pages/Prescriptions';
+import VendingMachine from './pages/VendingMachine';
 
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
@@ -55,6 +56,7 @@ const App = () => {
       <AuthProvider>
         <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#1e2538', color: '#f1f5f9', border: '1px solid #2d3a52', borderRadius: '10px' } }} />
         <Routes>
+          <Route path="/vending" element={<VendingMachine />} />
           <Route path="/login" element={<Login />} />
           <Route path="/*" element={<AppLayout />} />
         </Routes>

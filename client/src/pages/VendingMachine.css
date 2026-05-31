@@ -1,0 +1,294 @@
+.vending-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', sans-serif;
+}
+
+.vending-login-bg {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  justify-content: center;
+  align-items: center;
+}
+
+.vending-dashboard-bg {
+  background-color: #f8fafc;
+}
+
+.vending-card {
+  background: white;
+  padding: 3rem;
+  border-radius: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  max-width: 480px;
+  text-align: center;
+}
+
+.vending-header {
+  margin-bottom: 2rem;
+}
+
+.vending-icon {
+  color: #3b82f6;
+  margin-bottom: 1rem;
+}
+
+.vending-header h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.vending-header p {
+  color: #64748b;
+}
+
+.vending-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.vending-input {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  font-size: 1.25rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  text-align: center;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.vending-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.vending-btn {
+  width: 100%;
+  padding: 1rem;
+  background: #3b82f6;
+  color: white;
+  font-size: 1.125rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vending-btn:hover:not(:disabled) {
+  background: #2563eb;
+  transform: translateY(-2px);
+}
+
+.vending-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Dashboard UI */
+.vending-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 3rem;
+  background: #1e293b;
+  color: white;
+}
+
+.vending-logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.vending-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.vending-user-info {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.vending-user-name {
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+
+.vending-user-id {
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.vending-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.vending-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.vending-main {
+  padding: 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.vending-welcome {
+  margin-bottom: 3rem;
+}
+
+.vending-welcome h2 {
+  font-size: 2rem;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.vending-welcome p {
+  color: #64748b;
+  font-size: 1.125rem;
+}
+
+.vending-empty {
+  text-align: center;
+  padding: 4rem;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.vending-success-icon {
+  color: #10b981;
+  margin-bottom: 1rem;
+}
+
+.vending-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.vending-item-card {
+  background: white;
+  border-radius: 20px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+  border: 2px solid transparent;
+}
+
+.vending-item-card:hover:not(.empty) {
+  transform: translateY(-5px);
+  border-color: #3b82f6;
+}
+
+.vending-item-card.empty {
+  opacity: 0.6;
+  filter: grayscale(100%);
+}
+
+.vending-item-icon {
+  width: 80px;
+  height: 80px;
+  background: #eff6ff;
+  color: #3b82f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.vending-item-details h3 {
+  font-size: 1.25rem;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.vending-item-cat {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.vending-item-stats {
+  background: #f8fafc;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.vending-stat-label {
+  color: #64748b;
+  margin-right: 0.5rem;
+}
+
+.vending-stat-value {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 1.125rem;
+}
+
+.vending-dispense-btn {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  border: none;
+  background: #3b82f6;
+  color: white;
+}
+
+.vending-dispense-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.vending-dispense-btn:disabled {
+  background: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.vending-dispense-btn.dispensing {
+  background: #f59e0b;
+  color: white;
+}
+
+.spin-icon {
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}

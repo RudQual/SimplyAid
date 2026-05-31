@@ -42,8 +42,8 @@ export const AuthProvider = ({ children }) => {
     return handleAuthResponse(res);
   };
 
-  const signup = async (name, email, password) => {
-    const res = await signupAPI({ name, email, password });
+  const signup = async (name, email, password, employeeId) => {
+    const res = await signupAPI({ name, email, password, employeeId });
     return handleAuthResponse(res);
   };
 

@@ -8,6 +8,7 @@ const Login = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +31,7 @@ const Login = () => {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signup(name, email, password);
+        await signup(name, email, password, employeeId);
       } else {
         await login(email, password);
       }
@@ -45,6 +46,7 @@ const Login = () => {
     setError('');
     setName('');
     setEmail('');
+    setEmployeeId('');
     setPassword('');
     setConfirmPassword('');
   };
@@ -85,6 +87,22 @@ const Login = () => {
                   required={isSignUp}
                   tabIndex={isSignUp ? 0 : -1}
                   id="signup-name"
+                />
+              </div>
+            </div>
+
+            {/* Employee ID field — sign-up only */}
+            <div className={`login-field login-field--animated ${isSignUp ? 'login-field--visible' : 'login-field--hidden'}`}>
+              <label>Employee ID (Optional)</label>
+              <div className="login-input-wrap">
+                <User size={18} className="login-input-icon" />
+                <input
+                  type="text"
+                  value={employeeId}
+                  onChange={e => setEmployeeId(e.target.value)}
+                  placeholder="EMP-12345"
+                  tabIndex={isSignUp ? 0 : -1}
+                  id="signup-employee-id"
                 />
               </div>
             </div>
