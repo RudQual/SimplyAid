@@ -202,6 +202,12 @@ React Context that provides:
 - `AppLayout` renders Sidebar + Navbar + routed content
 - Login page is outside the layout (full-screen)
 
+### 3.10 Authentication Enhancements
+- Added Google OAuth support via `google-auth-library` (Backend).
+- Added Apple Sign-In support via `apple-signin-auth` (Backend).
+- Created `/api/auth/signup` route for new user registration.
+- Updated Login UI to support social login methods.
+
 ---
 
 ## STEP 4: Seed Data
