@@ -3,7 +3,7 @@ const InventoryItem = require('../models/InventoryItem');
 
 exports.createBox = async (req, res, next) => {
   try {
-    req.body.company = req.user.company._id || req.user.company;
+    req.body.company = req.user.company ? (req.user.company._id || req.user.company) : null;
     const box = await FirstAidBox.create(req.body);
     res.status(201).json({ success: true, data: box });
   } catch (error) { next(error); }
@@ -11,7 +11,7 @@ exports.createBox = async (req, res, next) => {
 
 exports.getBoxes = async (req, res, next) => {
   try {
-    const companyId = req.user.company._id || req.user.company;
+    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
     const { department, status } = req.query;
     const filter = { company: companyId, isActive: true };
     if (department) filter.department = department;
@@ -78,7 +78,7 @@ exports.replenishBox = async (req, res, next) => {
 // Inventory Item types
 exports.getInventoryItems = async (req, res, next) => {
   try {
-    const companyId = req.user.company._id || req.user.company;
+    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
     const items = await InventoryItem.find({ $or: [{ isGlobal: true }, { company: companyId }] }).sort('category name');
     res.json({ success: true, count: items.length, data: items });
   } catch (error) { next(error); }
@@ -86,7 +86,7 @@ exports.getInventoryItems = async (req, res, next) => {
 
 exports.createInventoryItem = async (req, res, next) => {
   try {
-    req.body.company = req.user.company._id || req.user.company;
+    req.body.company = req.user.company ? (req.user.company._id || req.user.company) : null;
     const item = await InventoryItem.create(req.body);
     res.status(201).json({ success: true, data: item });
   } catch (error) { next(error); }

@@ -14,6 +14,7 @@ import Employees from './pages/Employees';
 import Departments from './pages/Departments';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Prescriptions from './pages/Prescriptions';
 
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
@@ -40,6 +41,7 @@ const AppLayout = () => {
           <Route path="/departments" element={<ProtectedRoute roles={['admin']}><Departments /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute roles={['admin','safety_officer']}><Reports /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute roles={['admin']}><Settings /></ProtectedRoute>} />
+          <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

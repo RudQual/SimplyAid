@@ -268,3 +268,21 @@ Open `http://localhost:5173` in browser.
 | Accident reporting (Section 88) | Auto-detect: days lost ≥ 2 or fatal → reportable |
 | Form 18 tracking | `form18Generated` field on Incident |
 | Accident Register | Dedicated report tab with CSV export |
+
+---
+
+## STEP 7: Prescription Workflow (Doctor to Worker)
+Implemented a workflow separating Admin (Doctor) and Employee (Worker) to prescribe and consume first aid items.
+
+### 7.1 Prescription Model (`models/Prescription.js`)
+- Tracks `worker`, `prescribedBy`, `item`, `prescribedQty`, `consumedQty`.
+- Enforces status (`active`, `completed`).
+
+### 7.2 API Controllers & Routes
+- `POST /api/prescriptions` - Doctor creates a prescription.
+- `GET /api/prescriptions` - Doctor views all, Worker views only their own.
+- `PUT /api/prescriptions/:id/take` - Worker consumes `qty` units from a specific `FirstAidBox`. Inventory is deducted automatically, and `consumedQty` increases.
+
+### 7.3 Frontend UI (`pages/Prescriptions.jsx`)
+- **Doctor View:** "Add Prescription" button opens modal to assign items to workers.
+- **Worker View:** List of their prescriptions with "Take Dose" button, restricting them to take only up to the `prescribedQty`.

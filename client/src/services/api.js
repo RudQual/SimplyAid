@@ -70,4 +70,9 @@ export const getNotifications = (params) => API.get('/notifications', { params }
 export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
 export const markAllRead = () => API.put('/notifications/read-all');
 
+// Prescriptions
+export const getPrescriptions = () => API.get('/prescriptions');
+export const createPrescription = (data) => API.post('/prescriptions', data);
+export const consumePrescription = (id, data) => API.put(`/prescriptions/${id}/take`, data);
+
 export default API;

@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Shield, Heart } from 'lucide-react';
+import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Shield, Heart, Pill } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ collapsed, onToggle }) => {
@@ -14,6 +14,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['admin', 'safety_officer', 'department_head'] },
     { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['admin'] },
     { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['admin', 'safety_officer'] },
+    { path: '/prescriptions', icon: Pill, label: 'Prescriptions', roles: null },
     { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['admin'] },
   ];
 

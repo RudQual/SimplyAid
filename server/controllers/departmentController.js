@@ -6,7 +6,7 @@ const Department = require('../models/Department');
 exports.createDepartment = async (req, res, next) => {
   try {
     // Scope to user's company
-    req.body.company = req.body.company || req.user.company._id || req.user.company;
+    req.body.company = req.body.company || (req.user.company ? (req.user.company._id || req.user.company) : null);
     const department = await Department.create(req.body);
     res.status(201).json({ success: true, data: department });
   } catch (error) {
@@ -19,7 +19,7 @@ exports.createDepartment = async (req, res, next) => {
 // @access  Private
 exports.getDepartments = async (req, res, next) => {
   try {
-    const companyId = req.user.company._id || req.user.company;
+    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
     const departments = await Department.find({ company: companyId, isActive: true })
       .populate('headOfDepartment', 'name email')
       .sort('name');

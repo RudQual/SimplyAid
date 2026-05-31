@@ -4,7 +4,7 @@ const User = require('../models/User');
 
 exports.createIncident = async (req, res, next) => {
   try {
-    req.body.company = req.user.company._id || req.user.company;
+    req.body.company = req.user.company ? (req.user.company._id || req.user.company) : null;
     req.body.reportedBy = req.user._id;
     const incident = await Incident.create(req.body);
     incident.statusHistory.push({ status: 'reported', changedBy: req.user._id, notes: 'Incident reported' });
@@ -30,7 +30,7 @@ exports.createIncident = async (req, res, next) => {
 
 exports.getIncidents = async (req, res, next) => {
   try {
-    const companyId = req.user.company._id || req.user.company;
+    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
     const { department, severity, status, incidentType, startDate, endDate, search, page = 1, limit = 20 } = req.query;
     const filter = { company: companyId };
     if (req.user.role === 'department_head' && req.user.department) filter.department = req.user.department._id || req.user.department;
@@ -78,7 +78,7 @@ exports.updateIncident = async (req, res, next) => {
 
 exports.getIncidentStats = async (req, res, next) => {
   try {
-    const companyId = req.user.company._id || req.user.company;
+    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
     const startDate = new Date(); startDate.setDate(startDate.getDate() - parseInt(req.query.period || '30'));
     const [stats] = await Incident.aggregate([
       { $match: { company: companyId, dateTime: { $gte: startDate } } },
