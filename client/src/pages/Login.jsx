@@ -9,6 +9,7 @@ const Login = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [employeeId, setEmployeeId] = useState('');
+  const [role, setRole] = useState('employee');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,7 +32,7 @@ const Login = () => {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signup(name, email, password, employeeId);
+        await signup(name, email, password, employeeId, role);
       } else {
         await login(email, password);
       }
@@ -47,6 +48,7 @@ const Login = () => {
     setName('');
     setEmail('');
     setEmployeeId('');
+    setRole('employee');
     setPassword('');
     setConfirmPassword('');
   };
@@ -104,6 +106,24 @@ const Login = () => {
                   tabIndex={isSignUp ? 0 : -1}
                   id="signup-employee-id"
                 />
+              </div>
+            </div>
+
+            {/* User Type — sign-up only */}
+            <div className={`login-field login-field--animated ${isSignUp ? 'login-field--visible' : 'login-field--hidden'}`}>
+              <label>User Type</label>
+              <div className="login-input-wrap">
+                <User size={18} className="login-input-icon" />
+                <select
+                  value={role}
+                  onChange={e => setRole(e.target.value)}
+                  tabIndex={isSignUp ? 0 : -1}
+                  id="signup-role"
+                  style={{width:'100%',background:'transparent',border:'none',outline:'none',color:'inherit',fontSize:'inherit',paddingLeft:'0.5rem'}}
+                >
+                  <option value="employee">Employee (Worker)</option>
+                  <option value="admin">Admin (Doctor / Manager)</option>
+                </select>
               </div>
             </div>
 

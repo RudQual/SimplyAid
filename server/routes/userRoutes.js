@@ -4,8 +4,8 @@ const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
 router.get('/expiring-certifications', authorize('admin'), getExpiringCertifications);
-router.get('/', authorize('admin'), getUsers);
-router.get('/:id', authorize('admin'), getUser);
+router.get('/', getUsers);
+router.get('/:id', getUser);
 router.put('/:id', authorize('admin'), updateUser);
 router.delete('/:id', authorize('admin'), deleteUser);
 
