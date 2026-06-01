@@ -337,3 +337,16 @@ cd server && node seeds/seedData.js
 # Verify build
 cd client && npm run build
 ```
+
+---
+
+## STEP 10: Signup User Type & Incident Report Fix
+
+### 10.1 User Type on Registration Page
+- **Frontend (`Login.jsx`)**: Added a "User Type" dropdown to the signup form with two options: `Employee (Worker)` and `Admin (Doctor / Manager)`.
+- **Frontend (`AuthContext.jsx`)**: Updated `signup()` to accept and pass the `role` parameter.
+- **Backend (`authController.js`)**: Updated the `signup` endpoint to extract `role` from the request body and validate it against `['admin', 'employee']`.
+
+### 10.2 Incident Report Department Fix
+- **Root Cause**: The `NewIncident` page calls `getUsers()` to populate the "Treated By" dropdown. But `GET /api/users` was behind `authorize('admin')`, causing 403 for employees.
+- **Fix (`userRoutes.js`)**: Removed `authorize('admin')` from `GET /` and `GET /:id` — all authenticated users can now read the user list. Write operations (PUT, DELETE) remain admin-only.
