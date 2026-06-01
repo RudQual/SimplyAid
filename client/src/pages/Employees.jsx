@@ -41,7 +41,7 @@ const Employees = () => {
     } catch (e) { toast.error(e.response?.data?.message || 'Failed to add'); }
   };
 
-  const roleColors = { admin: 'purple', safety_officer: 'blue', first_aider: 'green', department_head: 'amber', employee: 'closed' };
+  const roleColors = { admin: 'purple', employee: 'closed' };
 
   return (
     <div className="page-content">
@@ -54,7 +54,7 @@ const Employees = () => {
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
           <div style={{flex:1,minWidth:200,position:'relative'}}><Search size={16} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)'}} /><input placeholder={t('common.search')} value={search} onChange={e => setSearch(e.target.value)} style={{paddingLeft:36}} /></div>
           <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{width:180}}><option value="">All Departments</option>{depts.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select>
-          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} style={{width:180}}><option value="">All Roles</option><option value="admin">Admin</option><option value="safety_officer">Safety Officer</option><option value="first_aider">First Aider</option><option value="department_head">Dept Head</option><option value="employee">Employee</option></select>
+          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} style={{width:180}}><option value="">All Roles</option><option value="admin">Admin</option><option value="employee">Employee</option></select>
         </div>
       </div>
 
@@ -92,7 +92,7 @@ const Employees = () => {
                 <div className="form-group"><label className="form-label">Employee ID</label><input value={form.employeeId} onChange={e => setForm(f => ({...f, employeeId: e.target.value}))} /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label className="form-label">Role</label><select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}><option value="employee">Employee</option><option value="first_aider">First Aider</option><option value="department_head">Dept Head</option><option value="safety_officer">Safety Officer</option><option value="admin">Admin</option></select></div>
+                <div className="form-group"><label className="form-label">Role</label><select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}><option value="employee">Employee</option><option value="admin">Admin</option></select></div>
                 <div className="form-group"><label className="form-label">Department</label><select value={form.department} onChange={e => setForm(f => ({...f, department: e.target.value}))}><option value="">Select</option>{depts.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select></div>
               </div>
               <div className="form-row">

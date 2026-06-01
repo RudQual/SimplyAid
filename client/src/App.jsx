@@ -37,10 +37,10 @@ const AppLayout = () => {
           <Route path="/incidents" element={<ProtectedRoute><Incidents /></ProtectedRoute>} />
           <Route path="/incidents/new" element={<ProtectedRoute><NewIncident /></ProtectedRoute>} />
           <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
-          <Route path="/inventory" element={<ProtectedRoute roles={['admin','safety_officer','first_aider']}><Inventory /></ProtectedRoute>} />
-          <Route path="/employees" element={<ProtectedRoute roles={['admin','safety_officer','department_head']}><Employees /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute roles={['admin']}><Inventory /></ProtectedRoute>} />
+          <Route path="/employees" element={<ProtectedRoute roles={['admin']}><Employees /></ProtectedRoute>} />
           <Route path="/departments" element={<ProtectedRoute roles={['admin']}><Departments /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute roles={['admin','safety_officer']}><Reports /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute roles={['admin']}><Reports /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute roles={['admin']}><Settings /></ProtectedRoute>} />
           <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />

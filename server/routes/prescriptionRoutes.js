@@ -6,7 +6,7 @@ router.use(protect);
 
 router.route('/')
   .get(getPrescriptions)
-  .post(authorize('admin', 'safety_officer', 'first_aider'), createPrescription);
+  .post(authorize('admin'), createPrescription);
 
 router.route('/:id/take')
   .put(authorize('employee'), consumePrescription);

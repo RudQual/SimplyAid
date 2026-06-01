@@ -3,7 +3,7 @@ const { getAccidentRegister, getDepartmentSummary, getComplianceStatus } = requi
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.use(authorize('admin', 'safety_officer'));
+router.use(authorize('admin'));
 router.get('/accident-register', getAccidentRegister);
 router.get('/department-summary', getDepartmentSummary);
 router.get('/compliance-status', getComplianceStatus);

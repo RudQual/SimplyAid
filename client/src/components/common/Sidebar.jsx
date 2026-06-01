@@ -10,10 +10,10 @@ const Sidebar = ({ collapsed, onToggle }) => {
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: t('nav.dashboard'), roles: null },
     { path: '/incidents', icon: AlertTriangle, label: t('nav.incidents'), roles: null },
-    { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['admin', 'safety_officer', 'first_aider'] },
-    { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['admin', 'safety_officer', 'department_head'] },
+    { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['admin'] },
+    { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['admin'] },
     { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['admin'] },
-    { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['admin', 'safety_officer'] },
+    { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['admin'] },
     { path: '/prescriptions', icon: Pill, label: 'Prescriptions', roles: null },
     { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['admin'] },
   ];

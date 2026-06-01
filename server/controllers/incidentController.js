@@ -11,8 +11,7 @@ exports.createIncident = async (req, res, next) => {
     await incident.save();
 
     // Notify safety officers and admins
-    const notifyRoles = ['safety_officer', 'admin'];
-    if (['serious', 'fatal'].includes(incident.severity)) notifyRoles.push('department_head');
+    const notifyRoles = ['admin'];
     const usersToNotify = await User.find({ company: req.body.company, role: { $in: notifyRoles }, isActive: true });
     const notifications = usersToNotify.map(u => ({
       recipient: u._id, company: req.body.company, type: 'incident_alert',
@@ -33,7 +32,7 @@ exports.getIncidents = async (req, res, next) => {
     const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
     const { department, severity, status, incidentType, startDate, endDate, search, page = 1, limit = 20 } = req.query;
     const filter = { company: companyId };
-    if (req.user.role === 'department_head' && req.user.department) filter.department = req.user.department._id || req.user.department;
+
     if (department) filter.department = department;
     if (severity) filter.severity = severity;
     if (status) filter.status = status;

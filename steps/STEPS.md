@@ -305,3 +305,35 @@ Implemented a "Virtual Vending Machine" kiosk feature for testing medicine lock/
 - **Route**: Accessible at `/vending`.
 - **Login Screen**: A focused UI where the worker inputs their `Employee ID`.
 - **Dispense Dashboard**: A grid displaying "slots" for prescribed items. If the user has active prescriptions, they can click "Dispense". The UI simulates unlocking and updating the database in real-time.
+
+---
+
+## STEP 9: Global 2-Role System (Admin vs Employee)
+Simplified the entire app from 5 roles down to just **2 user types**: `admin` (Doctor/Manager) and `employee` (Worker).
+
+### 9.1 Why
+The original system had `admin`, `safety_officer`, `first_aider`, `department_head`, and `employee`. The user wanted a cleaner separation: Admin handles all management (prescriptions, inventory, reports, employees) and Employees can only view their own prescriptions, report incidents, and use the vending machine.
+
+### 9.2 Backend Changes (8 files)
+- **`models/User.js`**: Role enum reduced to `['admin', 'employee']`
+- **5 Route files**: All `authorize('admin', 'safety_officer', ...)` calls simplified to `authorize('admin')`
+- **`incidentController.js`**: Removed `department_head` scope filtering and `safety_officer` notification logic
+- **`seeds/seedData.js`**: All non-admin users set to `employee`, credentials simplified to 2 logins
+
+### 9.3 Frontend Changes (7 files)
+- **`App.jsx`**: Route role guards simplified to `['admin']`
+- **`Sidebar.jsx`**: Menu visibility simplified to `['admin']`
+- **`Dashboard.jsx`**: Admin-only stat fetching simplified
+- **`Employees.jsx`**: Role colors, filter dropdown, and add-employee form limited to 2 roles
+- **`IncidentDetail.jsx`**: Edit button visibility simplified
+- **`Prescriptions.jsx`**: Doctor check simplified to `hasRole('admin')`
+- **`NewIncident.jsx`**: First aider filter simplified
+
+### 9.4 Commands Run
+```bash
+# Re-seed with updated 2-role data
+cd server && node seeds/seedData.js
+
+# Verify build
+cd client && npm run build
+```

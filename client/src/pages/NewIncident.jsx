@@ -133,7 +133,7 @@ const NewIncident = () => {
             <h3 style={{marginBottom:20,fontWeight:700}}>Treatment Details</h3>
             <div className="form-group"><label className="form-label">Treatment Given</label><textarea rows={3} value={form.treatmentGiven} onChange={e => set('treatmentGiven', e.target.value)} placeholder="Describe first aid given..." /></div>
             <div className="form-row">
-              <div className="form-group"><label className="form-label">Treated By</label><select value={form.treatedBy} onChange={e => set('treatedBy', e.target.value)}><option value="">Select</option>{users.filter(u => u.firstAidCertified || u.role === 'first_aider').map(u => <option key={u._id} value={u._id}>{u.name}</option>)}</select></div>
+              <div className="form-group"><label className="form-label">Treated By</label><select value={form.treatedBy} onChange={e => set('treatedBy', e.target.value)}><option value="">Select</option>{users.filter(u => u.firstAidCertified).map(u => <option key={u._id} value={u._id}>{u.name}</option>)}</select></div>
               <div className="form-group"><label className="form-label">First Aid Box Used</label><select value={form.firstAidBoxUsed} onChange={e => set('firstAidBoxUsed', e.target.value)}><option value="">Select</option>{boxes.map(b => <option key={b._id} value={b._id}>{b.boxId} - {b.location}</option>)}</select></div>
             </div>
             <div className="form-group"><label className="form-label">Witnesses (comma separated)</label><input value={form.witnesses} onChange={e => set('witnesses', e.target.value)} placeholder="Name 1, Name 2" /></div>

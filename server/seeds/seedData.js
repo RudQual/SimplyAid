@@ -56,9 +56,9 @@ const seedDB = async () => {
 
     const users = await User.create([
       { name: 'Admin User', email: 'admin@simplyaid.com', password: 'Admin@123', role: 'admin', company: company._id, department: adminDept._id, employeeId: 'EMP001', phone: '9876543210', designation: 'Factory Manager' },
-      { name: 'Suresh Patil', email: 'safety@simplyaid.com', password: 'Safety@123', role: 'safety_officer', company: company._id, department: safetyDept._id, employeeId: 'EMP002', phone: '9876543211', firstAidCertified: true, certificationExpiry: new Date('2027-06-15'), designation: 'Safety Officer' },
-      { name: 'Meena Sharma', email: 'firstaider@simplyaid.com', password: 'First@123', role: 'first_aider', company: company._id, department: prodDept._id, employeeId: 'EMP003', phone: '9876543212', firstAidCertified: true, certificationExpiry: new Date('2027-03-20'), designation: 'First Aider' },
-      { name: 'Vikram Singh', email: 'depthead@simplyaid.com', password: 'Dept@123', role: 'department_head', company: company._id, department: prodDept._id, employeeId: 'EMP004', phone: '9876543213', designation: 'Production Manager' },
+      { name: 'Suresh Patil', email: 'safety@simplyaid.com', password: 'Safety@123', role: 'employee', company: company._id, department: safetyDept._id, employeeId: 'EMP002', phone: '9876543211', firstAidCertified: true, certificationExpiry: new Date('2027-06-15'), designation: 'Safety Officer' },
+      { name: 'Meena Sharma', email: 'firstaider@simplyaid.com', password: 'First@123', role: 'employee', company: company._id, department: prodDept._id, employeeId: 'EMP003', phone: '9876543212', firstAidCertified: true, certificationExpiry: new Date('2027-03-20'), designation: 'First Aider' },
+      { name: 'Vikram Singh', email: 'depthead@simplyaid.com', password: 'Dept@123', role: 'employee', company: company._id, department: prodDept._id, employeeId: 'EMP004', phone: '9876543213', designation: 'Production Manager' },
       { name: 'Priya Desai', email: 'employee@simplyaid.com', password: 'Emp@123', role: 'employee', company: company._id, department: prodDept._id, employeeId: 'EMP005', phone: '9876543214', designation: 'Machine Operator' }
     ]);
     console.log('👥 Users created');
@@ -89,8 +89,8 @@ const seedDB = async () => {
     console.log('📦 Inventory items created (20 prescribed items)');
 
     // 5. Create First Aid Boxes (1 per 150 workers, need 3 for 320 workers)
-    const safetyOfficer = users.find(u => u.role === 'safety_officer');
-    const firstAider = users.find(u => u.role === 'first_aider');
+    const sureshPatil = users.find(u => u.name === 'Suresh Patil');
+    const meenaSharma = users.find(u => u.name === 'Meena Sharma');
     const classType = 'B';
 
     const boxItems = items.map(item => ({
@@ -100,18 +100,15 @@ const seedDB = async () => {
     }));
 
     await FirstAidBox.insertMany([
-      { boxId: 'FAB-PROD-001', company: company._id, department: prodDept._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType, inCharge: firstAider._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
-      { boxId: 'FAB-MAINT-001', company: company._id, department: depts.find(d => d.code === 'MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType, inCharge: safetyOfficer._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
-      { boxId: 'FAB-ADMIN-001', company: company._id, department: adminDept._id, location: 'Main Office - Reception Area', floor: '1st', classType: 'A', inCharge: safetyOfficer._id, items: items.map(item => ({ item: item._id, currentQty: item.requiredQty.classA, requiredQty: item.requiredQty.classA })), lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' }
+      { boxId: 'FAB-PROD-001', company: company._id, department: prodDept._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType, inCharge: meenaSharma._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
+      { boxId: 'FAB-MAINT-001', company: company._id, department: depts.find(d => d.code === 'MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType, inCharge: sureshPatil._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
+      { boxId: 'FAB-ADMIN-001', company: company._id, department: adminDept._id, location: 'Main Office - Reception Area', floor: '1st', classType: 'A', inCharge: sureshPatil._id, items: items.map(item => ({ item: item._id, currentQty: item.requiredQty.classA, requiredQty: item.requiredQty.classA })), lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' }
     ]);
     console.log('🩹 First Aid Boxes created (3 boxes)');
 
     console.log('\n✅ Seed complete! Login credentials:');
-    console.log('   Admin:          admin@simplyaid.com / Admin@123');
-    console.log('   Safety Officer: safety@simplyaid.com / Safety@123');
-    console.log('   First Aider:    firstaider@simplyaid.com / First@123');
-    console.log('   Dept Head:      depthead@simplyaid.com / Dept@123');
-    console.log('   Employee:       employee@simplyaid.com / Emp@123\n');
+    console.log('   Admin:    admin@simplyaid.com / Admin@123');
+    console.log('   Employee: employee@simplyaid.com / Emp@123\n');
 
     process.exit(0);
   } catch (error) {
