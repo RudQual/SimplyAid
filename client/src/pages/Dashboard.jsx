@@ -9,7 +9,7 @@ import './Dashboard.css';
 const COLORS = ['#3b82f6', '#f59e0b', '#ef4444', '#10b981', '#6366f1', '#ec4899'];
 
 const Dashboard = () => {
-  const { t, user, hasRole } = useAuth();
+  const { t, user, hasRole, isGuest, requireAuth } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [compliance, setCompliance] = useState(null);
@@ -32,7 +32,7 @@ const Dashboard = () => {
         const compRes = await getComplianceStatus();
         setCompliance(compRes.data.data);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { /* Guests will get 401 — gracefully show empty */ }
     finally { setLoading(false); }
   };
 
@@ -46,15 +46,17 @@ const Dashboard = () => {
   const typeData = (stats?.typeBreakdown || []).map(t => ({ name: t._id, value: t.count }));
   const deptData = (stats?.departmentStats || []).map(d => ({ name: d.department?.name || 'Unknown', count: d.count, serious: d.serious }));
 
+  const welcomeName = isGuest ? t('guest.welcome').replace(', ', ', ') : `Welcome back, ${user?.name}`;
+
   return (
     <div className="page-content">
       <div className="page-header">
         <div>
           <h1 className="page-title">{t('dashboard.title')}</h1>
-          <p className="page-subtitle">Welcome back, {user?.name}. Here's your safety overview.</p>
+          <p className="page-subtitle">{isGuest ? t('guest.subtitle') : `${welcomeName}. Here's your safety overview.`}</p>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => navigate('/incidents/new')}><Plus size={18} />{t('dashboard.reportIncident')}</button>
+          <button className="btn btn-primary" onClick={() => requireAuth(() => navigate('/incidents/new'))}><Plus size={18} />{t('dashboard.reportIncident')}</button>
         </div>
       </div>
 
@@ -121,7 +123,7 @@ const Dashboard = () => {
         <div className="card">
           <div className="card-header">
             <h3 className="card-title">{t('dashboard.recentIncidents')}</h3>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/incidents')}>{t('common.view')} All</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => requireAuth(() => navigate('/incidents'))}>{t('common.view')} All</button>
           </div>
           {recentIncidents.length > 0 ? (
             <div className="table-container" style={{border:'none'}}>
@@ -129,7 +131,7 @@ const Dashboard = () => {
                 <thead><tr><th>ID</th><th>{t('incidents.severity')}</th><th>{t('incidents.department')}</th><th>{t('incidents.status')}</th></tr></thead>
                 <tbody>
                   {recentIncidents.map(inc => (
-                    <tr key={inc._id} onClick={() => navigate(`/incidents/${inc._id}`)} style={{cursor:'pointer'}}>
+                    <tr key={inc._id} onClick={() => requireAuth(() => navigate(`/incidents/${inc._id}`))} style={{cursor:'pointer'}}>
                       <td style={{fontWeight:600,color:'var(--accent)'}}>{inc.incidentId}</td>
                       <td><span className={`badge badge-${inc.severity}`}>{t(`incidents.${inc.severity}`)}</span></td>
                       <td>{inc.department?.name}</td>
@@ -147,13 +149,13 @@ const Dashboard = () => {
           <div className="card">
             <h3 className="card-title" style={{marginBottom:16}}>{t('dashboard.quickActions')}</h3>
             <div className="quick-actions">
-              <button className="quick-action-btn" onClick={() => navigate('/incidents/new')}>
+              <button className="quick-action-btn" onClick={() => requireAuth(() => navigate('/incidents/new'))}>
                 <Plus size={20} /><span>{t('dashboard.reportIncident')}</span>
               </button>
-              <button className="quick-action-btn" onClick={() => navigate('/inventory')}>
+              <button className="quick-action-btn" onClick={() => requireAuth(() => navigate('/inventory'))}>
                 <ClipboardCheck size={20} /><span>{t('dashboard.inspectBox')}</span>
               </button>
-              <button className="quick-action-btn" onClick={() => navigate('/reports')}>
+              <button className="quick-action-btn" onClick={() => requireAuth(() => navigate('/reports'))}>
                 <FileBarChart size={20} /><span>{t('dashboard.viewReports')}</span>
               </button>
             </div>

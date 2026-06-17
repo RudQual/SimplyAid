@@ -5,7 +5,7 @@ import { getIncidents, getDepartments } from '../services/api';
 import { Plus, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Incidents = () => {
-  const { t } = useAuth();
+  const { t, requireAuth } = useAuth();
   const navigate = useNavigate();
   const [incidents, setIncidents] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -33,7 +33,7 @@ const Incidents = () => {
     <div className="page-content">
       <div className="page-header">
         <div><h1 className="page-title">{t('incidents.title')}</h1><p className="page-subtitle">Track and manage workplace incidents</p></div>
-        <button className="btn btn-primary" onClick={() => navigate('/incidents/new')}><Plus size={18} />{t('incidents.new')}</button>
+        <button className="btn btn-primary" onClick={() => requireAuth(() => navigate('/incidents/new'))}><Plus size={18} />{t('incidents.new')}</button>
       </div>
 
       {/* Filters */}
@@ -79,7 +79,7 @@ const Incidents = () => {
               {incidents.length === 0 ? (
                 <tr><td colSpan={8} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>{t('common.noData')}</td></tr>
               ) : incidents.map(inc => (
-                <tr key={inc._id} onClick={() => navigate(`/incidents/${inc._id}`)} style={{cursor:'pointer'}}>
+                <tr key={inc._id} onClick={() => requireAuth(() => navigate(`/incidents/${inc._id}`))} style={{cursor:'pointer'}}>
                   <td style={{fontWeight:600,color:'var(--accent)'}}>{inc.incidentId}</td>
                   <td>{new Date(inc.dateTime).toLocaleDateString()}</td>
                   <td>{inc.injuredPerson?.name}</td>

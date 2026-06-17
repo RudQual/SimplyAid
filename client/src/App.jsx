@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Sidebar from './components/common/Sidebar';
 import Navbar from './components/common/Navbar';
+import AuthRequiredModal from './components/common/AuthRequiredModal';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Incidents from './pages/Incidents';
@@ -14,12 +15,28 @@ import Employees from './pages/Employees';
 import Departments from './pages/Departments';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import EmployeeProfile from './pages/EmployeeProfile';
+import EmployeeIdCard from './pages/EmployeeIdCard';
+import ScanHistory from './pages/ScanHistory';
 
+// Allows guests to view pages. Only blocks if a logged-in user lacks the required role.
+const GuestableRoute = ({ children, roles }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
+  // Guests can see everything — pages handle their own action-gating
+  if (!user) return children;
+  // REMOVED: role check so all logged-in users can view pages
+  // if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
+  return children;
+};
+
+// Strictly protected — guests are redirected to login (for write-only pages)
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
   if (!user) return <Navigate to="/login" />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
+  // REMOVED: role check so all logged-in users can view pages
+  // if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
   return children;
 };
 
@@ -31,18 +48,22 @@ const AppLayout = () => {
       <Navbar />
       <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
         <Routes>
-          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/incidents" element={<ProtectedRoute><Incidents /></ProtectedRoute>} />
+          <Route path="/" element={<GuestableRoute><Dashboard /></GuestableRoute>} />
+          <Route path="/incidents" element={<GuestableRoute><Incidents /></GuestableRoute>} />
           <Route path="/incidents/new" element={<ProtectedRoute><NewIncident /></ProtectedRoute>} />
           <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
-          <Route path="/inventory" element={<ProtectedRoute roles={['admin','safety_officer','first_aider']}><Inventory /></ProtectedRoute>} />
-          <Route path="/employees" element={<ProtectedRoute roles={['admin','safety_officer','department_head']}><Employees /></ProtectedRoute>} />
-          <Route path="/departments" element={<ProtectedRoute roles={['admin']}><Departments /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute roles={['admin','safety_officer']}><Reports /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute roles={['admin']}><Settings /></ProtectedRoute>} />
+          <Route path="/inventory" element={<GuestableRoute roles={['admin','safety_officer','first_aider']}><Inventory /></GuestableRoute>} />
+          <Route path="/employees" element={<GuestableRoute roles={['admin','safety_officer','department_head']}><Employees /></GuestableRoute>} />
+          <Route path="/employees/:id" element={<ProtectedRoute><EmployeeProfile /></ProtectedRoute>} />
+          <Route path="/employees/:id/card" element={<ProtectedRoute><EmployeeIdCard /></ProtectedRoute>} />
+          <Route path="/departments" element={<GuestableRoute roles={['admin']}><Departments /></GuestableRoute>} />
+          <Route path="/reports" element={<GuestableRoute roles={['admin','safety_officer']}><Reports /></GuestableRoute>} />
+          <Route path="/scan-history" element={<ProtectedRoute roles={['admin','safety_officer']}><ScanHistory /></ProtectedRoute>} />
+          <Route path="/settings" element={<GuestableRoute roles={['admin']}><Settings /></GuestableRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
+      <AuthRequiredModal />
     </div>
   );
 };

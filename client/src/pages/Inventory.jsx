@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 const statusIcon = { adequate: <CheckCircle size={16} />, needs_replenishment: <AlertTriangle size={16} />, overdue_inspection: <XCircle size={16} /> };
 
 const Inventory = () => {
-  const { t } = useAuth();
+  const { t, requireAuth } = useAuth();
   const [boxes, setBoxes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -16,8 +16,10 @@ const Inventory = () => {
   const loadBoxes = async () => { try { const r = await getBoxes({}); setBoxes(r.data.data); } catch(e){} finally { setLoading(false); } };
 
   const handleInspect = async (boxId) => {
-    try { await inspectBox(boxId, { status: 'adequate', notes: 'Routine inspection - all items adequate' }); toast.success('Inspection logged'); loadBoxes(); }
-    catch(e) { toast.error('Failed to log inspection'); }
+    requireAuth(async () => {
+      try { await inspectBox(boxId, { status: 'adequate', notes: 'Routine inspection - all items adequate' }); toast.success('Inspection logged'); loadBoxes(); }
+      catch(e) { toast.error('Failed to log inspection'); }
+    });
   };
 
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;

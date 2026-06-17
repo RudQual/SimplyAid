@@ -1,21 +1,25 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getNotifications, markAllRead, markNotificationRead } from '../../services/api';
-import { Bell, LogOut, Globe, X, Check } from 'lucide-react';
+import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye } from 'lucide-react';
 import './Navbar.css';
 
 const Navbar = () => {
-  const { user, logout, t, lang, switchLang } = useAuth();
+  const { user, isGuest, logout, t, lang, switchLang } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showLang, setShowLang] = useState(false);
 
   useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!isGuest) {
+      loadNotifications();
+      const interval = setInterval(loadNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isGuest]);
 
   const loadNotifications = async () => {
     try {
@@ -41,6 +45,11 @@ const Navbar = () => {
     <header className="navbar">
       <div className="navbar-left">
         <h2 className="navbar-title">{t('app.name')}</h2>
+        {isGuest && (
+          <span className="navbar-guest-badge">
+            <Eye size={12} /> {t('guest.exploreMode')}
+          </span>
+        )}
       </div>
       <div className="navbar-right">
         {/* Language Toggle */}
@@ -60,36 +69,50 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Notifications */}
-        <div className="navbar-dropdown">
-          <button className="navbar-icon-btn" onClick={() => { setShowNotifs(!showNotifs); setShowLang(false); }}>
-            <Bell size={18} />
-            {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-          </button>
-          {showNotifs && (
-            <div className="dropdown-menu notif-menu">
-              <div className="notif-header">
-                <span className="notif-title">{t('nav.notifications')}</span>
-                {unreadCount > 0 && <button className="notif-read-all" onClick={handleMarkAllRead}>Mark all read</button>}
-              </div>
-              <div className="notif-list">
-                {notifications.length === 0 ? (
-                  <div className="notif-empty">No notifications</div>
-                ) : notifications.map(n => (
-                  <div key={n._id} className={`notif-item ${!n.isRead ? 'unread' : ''} ${getSeverityClass(n.severity)}`} onClick={() => handleNotifClick(n)}>
-                    <div className="notif-item-title">{lang === 'hi' && n.titleHi ? n.titleHi : n.title}</div>
-                    <div className="notif-item-msg">{lang === 'hi' && n.messageHi ? n.messageHi : n.message}</div>
-                    <div className="notif-item-time">{new Date(n.createdAt).toLocaleDateString()}</div>
+        {isGuest ? (
+          /* Guest: show Sign In / Sign Up buttons */
+          <div className="navbar-guest-actions">
+            <button className="navbar-signin-btn" onClick={() => navigate('/login')} id="navbar-signin-btn">
+              <LogIn size={16} /> {t('guest.signInBtn')}
+            </button>
+            <button className="navbar-signup-btn" onClick={() => navigate('/login?mode=signup')} id="navbar-signup-btn">
+              <UserPlus size={16} /> {t('guest.signUpBtn')}
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Notifications */}
+            <div className="navbar-dropdown">
+              <button className="navbar-icon-btn" onClick={() => { setShowNotifs(!showNotifs); setShowLang(false); }}>
+                <Bell size={18} />
+                {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+              </button>
+              {showNotifs && (
+                <div className="dropdown-menu notif-menu">
+                  <div className="notif-header">
+                    <span className="notif-title">{t('nav.notifications')}</span>
+                    {unreadCount > 0 && <button className="notif-read-all" onClick={handleMarkAllRead}>Mark all read</button>}
                   </div>
-                ))}
-              </div>
+                  <div className="notif-list">
+                    {notifications.length === 0 ? (
+                      <div className="notif-empty">No notifications</div>
+                    ) : notifications.map(n => (
+                      <div key={n._id} className={`notif-item ${!n.isRead ? 'unread' : ''} ${getSeverityClass(n.severity)}`} onClick={() => handleNotifClick(n)}>
+                        <div className="notif-item-title">{lang === 'hi' && n.titleHi ? n.titleHi : n.title}</div>
+                        <div className="notif-item-msg">{lang === 'hi' && n.messageHi ? n.messageHi : n.message}</div>
+                        <div className="notif-item-time">{new Date(n.createdAt).toLocaleDateString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <button className="navbar-icon-btn logout-btn" onClick={logout} title={t('nav.logout')}>
-          <LogOut size={18} />
-        </button>
+            <button className="navbar-icon-btn logout-btn" onClick={logout} title={t('nav.logout')}>
+              <LogOut size={18} />
+            </button>
+          </>
+        )}
       </div>
     </header>
   );

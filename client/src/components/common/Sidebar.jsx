@@ -1,23 +1,25 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Shield, Heart } from 'lucide-react';
+import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Heart, Lock, LogIn, ScanLine } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ collapsed, onToggle }) => {
-  const { user, hasRole, t } = useAuth();
-  const location = useLocation();
+  const { user, hasRole, isGuest, requireAuth, t } = useAuth();
+  const navigate = useNavigate();
 
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: t('nav.dashboard'), roles: null },
     { path: '/incidents', icon: AlertTriangle, label: t('nav.incidents'), roles: null },
     { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['admin', 'safety_officer', 'first_aider'] },
     { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['admin', 'safety_officer', 'department_head'] },
+    { path: '/scan-history', icon: ScanLine, label: t('nav.scanHistory'), roles: ['admin', 'safety_officer'] },
     { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['admin'] },
     { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['admin', 'safety_officer'] },
     { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['admin'] },
   ];
 
-  const visible = menuItems.filter(item => !item.roles || item.roles.some(r => hasRole(r)));
+  // Everyone sees all items
+  const visible = menuItems;
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -35,15 +37,23 @@ const Sidebar = ({ collapsed, onToggle }) => {
           <NavLink key={item.path} to={item.path} end={item.path === '/'} className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} title={collapsed ? item.label : ''}>
             <item.icon size={20} />
             {!collapsed && <span>{item.label}</span>}
+            {!collapsed && isGuest && item.roles && <Lock size={12} className="sidebar-lock-icon" />}
           </NavLink>
         ))}
       </nav>
       {!collapsed && (
         <div className="sidebar-footer">
-          <div className="sidebar-user">
-            <div className="user-avatar">{user?.name?.charAt(0)}</div>
-            <div className="user-info"><div className="user-name">{user?.name}</div><div className="user-role">{user?.role?.replace('_', ' ')}</div></div>
-          </div>
+          {isGuest ? (
+            <button className="sidebar-signin-btn" onClick={() => navigate('/login')}>
+              <LogIn size={18} />
+              <span>{t('guest.signInBtn')}</span>
+            </button>
+          ) : (
+            <div className="sidebar-user">
+              <div className="user-avatar">{user?.name?.charAt(0)}</div>
+              <div className="user-info"><div className="user-name">{user?.name}</div><div className="user-role">{user?.role?.replace('_', ' ')}</div></div>
+            </div>
+          )}
         </div>
       )}
     </aside>

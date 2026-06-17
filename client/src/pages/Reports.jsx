@@ -4,7 +4,7 @@ import { getComplianceStatus, getDepartmentSummary, getAccidentRegister } from '
 import { ShieldCheck, CheckCircle, XCircle, Download, FileText } from 'lucide-react';
 
 const Reports = () => {
-  const { t } = useAuth();
+  const { t, requireAuth } = useAuth();
   const [tab, setTab] = useState('compliance');
   const [compliance, setCompliance] = useState(null);
   const [deptSummary, setDeptSummary] = useState([]);
@@ -22,12 +22,14 @@ const Reports = () => {
   };
 
   const exportCSV = (data, filename) => {
-    if (!data.length) return;
-    const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object');
-    const csv = [headers.join(','), ...data.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    requireAuth(() => {
+      if (!data.length) return;
+      const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object');
+      const csv = [headers.join(','), ...data.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    });
   };
 
   return (
