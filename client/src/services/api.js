@@ -51,7 +51,7 @@ export const createIncident = (data) => API.post('/incidents', data);
 export const updateIncident = (id, data) => API.put(`/incidents/${id}`, data);
 export const getIncidentStats = (params) => API.get('/incidents/stats/summary', { params });
 
-// Inventory
+// Inventory & Boxes
 export const getBoxes = (params) => API.get('/inventory/boxes', { params });
 export const getBox = (id) => API.get(`/inventory/boxes/${id}`);
 export const createBox = (data) => API.post('/inventory/boxes', data);
@@ -59,6 +59,9 @@ export const updateBox = (id, data) => API.put(`/inventory/boxes/${id}`, data);
 export const inspectBox = (id, data) => API.put(`/inventory/boxes/${id}/inspect`, data);
 export const replenishBox = (id, data) => API.put(`/inventory/boxes/${id}/replenish`, data);
 export const getInventoryItems = () => API.get('/inventory/items');
+export const generateBoxQr = (id) => API.post(`/inventory/boxes/${id}/generate-qr`);
+export const scanBoxQr = (boxId) => API.get(`/inventory/boxes/scan/${boxId}`);
+export const downloadBoxQr = (id) => API.get(`/inventory/boxes/${id}/download-qr`, { responseType: 'blob' });
 
 // Reports
 export const getAccidentRegister = (params) => API.get('/reports/accident-register', { params });
@@ -69,6 +72,8 @@ export const getComplianceStatus = () => API.get('/reports/compliance-status');
 export const getNotifications = (params) => API.get('/notifications', { params });
 export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
 export const markAllRead = () => API.put('/notifications/read-all');
+export const archiveNotification = (id) => API.put(`/notifications/${id}/archive`);
+export const getNotificationStats = () => API.get('/notifications/stats');
 
 // Prescriptions
 export const getPrescriptions = () => API.get('/prescriptions');
@@ -89,5 +94,50 @@ export const uploadProfilePhoto = (id, formData) => API.put(`/employees/${id}/ph
 export const getEmployeeCardData = (id) => API.get(`/employees/card/${id}`);
 export const getScanHistory = (params) => API.get('/employees/scan-history', { params });
 export const getEmployeeScanHistory = (employeeId) => API.get(`/employees/scan-history/${employeeId}`);
+
+// --- Phase 2 APIs ---
+
+// Treatments
+export const getTreatments = (params) => API.get('/treatments', { params });
+export const getTreatment = (id) => API.get(`/treatments/${id}`);
+export const createTreatment = (data) => API.post('/treatments', data);
+export const getTreatmentStats = (params) => API.get('/treatments/stats', { params });
+export const getEmployeeTreatments = (employeeId) => API.get(`/treatments/employee/${employeeId}`);
+
+// Medical Profiles
+export const getMedicalProfile = (employeeId) => API.get(`/medical-profiles/${employeeId}`);
+export const updateMedicalProfile = (employeeId, data) => API.put(`/medical-profiles/${employeeId}`, data);
+export const getEmergencyCard = (employeeId) => API.get(`/medical-profiles/${employeeId}/emergency`);
+
+// Prescriptions
+export const getPrescriptions = (params) => API.get('/prescriptions', { params });
+export const getPrescription = (id) => API.get(`/prescriptions/${id}`);
+export const createPrescription = (data) => API.post('/prescriptions', data);
+export const updatePrescription = (id, data) => API.put(`/prescriptions/${id}`, data);
+export const getActivePrescriptions = (employeeId) => API.get(`/prescriptions/employee/${employeeId}/active`);
+
+// Expiry Tracking
+export const getExpiryDashboard = () => API.get('/expiry/dashboard');
+export const getExpiringItems = (params) => API.get('/expiry/items', { params });
+export const checkExpiryAlerts = () => API.post('/expiry/check-alerts');
+
+// Compliance
+export const getCompanyCompliance = () => API.get('/compliance/company');
+export const getDepartmentCompliance = () => API.get('/compliance/departments');
+export const runComplianceCheck = () => API.post('/compliance/check');
+
+// Inspections
+export const getInspections = (params) => API.get('/inspections', { params });
+export const getInspection = (id) => API.get(`/inspections/${id}`);
+export const createInspection = (data) => API.post('/inspections', data);
+
+// Analytics
+export const getInjuryAnalytics = (params) => API.get('/analytics/injuries', { params });
+export const getTreatmentAnalytics = (params) => API.get('/analytics/treatments', { params });
+export const getInventoryAnalytics = (params) => API.get('/analytics/inventory', { params });
+export const getComplianceAnalytics = () => API.get('/analytics/compliance');
+
+// Audit Logs
+export const getAuditLogs = (params) => API.get('/audit-logs', { params });
 
 export default API;

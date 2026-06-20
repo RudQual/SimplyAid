@@ -21,6 +21,19 @@ import EmployeeProfile from './pages/EmployeeProfile';
 import EmployeeIdCard from './pages/EmployeeIdCard';
 import ScanHistory from './pages/ScanHistory';
 
+// Phase 2 Pages
+import Treatments from './pages/Treatments';
+import NewTreatment from './pages/NewTreatment';
+import TreatmentDetail from './pages/TreatmentDetail';
+import TreatmentDetail from './pages/TreatmentDetail';
+import ExpiryDashboard from './pages/ExpiryDashboard';
+import ComplianceDashboard from './pages/ComplianceDashboard';
+import NotificationCenter from './pages/NotificationCenter';
+import SafetyAnalytics from './pages/SafetyAnalytics';
+import BoxProfile from './pages/BoxProfile';
+import InspectionForm from './pages/InspectionForm';
+import AIAssistant from './pages/AIAssistant';
+
 // Allows guests to view pages. Only blocks if a logged-in user lacks the required role.
 const GuestableRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
@@ -56,6 +69,16 @@ const AppLayout = () => {
           <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
           <Route path="/inventory" element={<ProtectedRoute roles={['admin']}><Inventory /></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute roles={['admin']}><Employees /></ProtectedRoute>} />
+          <Route path="/treatments" element={<ProtectedRoute roles={['admin']}><Treatments /></ProtectedRoute>} />
+          <Route path="/treatments/new" element={<ProtectedRoute roles={['admin']}><NewTreatment /></ProtectedRoute>} />
+          <Route path="/treatments/:id" element={<ProtectedRoute roles={['admin']}><TreatmentDetail /></ProtectedRoute>} />
+          <Route path="/inventory/boxes/scan/:boxId" element={<ProtectedRoute roles={['admin']}><BoxProfile /></ProtectedRoute>} />
+          <Route path="/inventory/boxes/:boxId/inspect" element={<ProtectedRoute roles={['admin']}><InspectionForm /></ProtectedRoute>} />
+          <Route path="/expiry" element={<ProtectedRoute roles={['admin']}><ExpiryDashboard /></ProtectedRoute>} />
+          <Route path="/compliance" element={<ProtectedRoute roles={['admin']}><ComplianceDashboard /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute roles={['admin']}><SafetyAnalytics /></ProtectedRoute>} />
+          <Route path="/ai-assistant" element={<ProtectedRoute roles={['admin']}><AIAssistant /></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute><NotificationCenter /></ProtectedRoute>} />
           <Route path="/employees/:id" element={<ProtectedRoute><EmployeeProfile /></ProtectedRoute>} />
           <Route path="/employees/:id/card" element={<ProtectedRoute><EmployeeIdCard /></ProtectedRoute>} />
           <Route path="/departments" element={<ProtectedRoute roles={['admin']}><Departments /></ProtectedRoute>} />
@@ -75,7 +98,7 @@ const App = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#1e2538', color: '#f1f5f9', border: '1px solid #2d3a52', borderRadius: '10px' } }} />
+        <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' } }} />
         <Routes>
           <Route path="/vending" element={<VendingMachine />} />
           <Route path="/login" element={<Login />} />

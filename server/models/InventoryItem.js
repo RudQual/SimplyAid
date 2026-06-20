@@ -49,6 +49,14 @@ const inventoryItemSchema = new mongoose.Schema({
   isGlobal: {
     type: Boolean,
     default: false // true for statutory items
+  },
+  defaultShelfLifeDays: {
+    type: Number,
+    default: 365
+  },
+  requiresExpiryTracking: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: true

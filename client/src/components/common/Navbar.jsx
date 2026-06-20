@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getNotifications, markAllRead, markNotificationRead } from '../../services/api';
-import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye } from 'lucide-react';
+import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye, AlertTriangle } from 'lucide-react';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -81,6 +81,12 @@ const Navbar = () => {
           </div>
         ) : (
           <>
+            {/* SOS Button */}
+            <button className="sos-btn" onClick={() => navigate('/incidents/new?type=emergency')}>
+              <AlertTriangle size={18} />
+              <span>SOS</span>
+            </button>
+
             {/* Notifications */}
             <div className="navbar-dropdown">
               <button className="navbar-icon-btn" onClick={() => { setShowNotifs(!showNotifs); setShowLang(false); }}>

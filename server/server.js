@@ -41,6 +41,16 @@ app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
 app.use('/api/vending', require('./routes/vendingRoutes'));
 app.use('/api/employees', require('./routes/employeeRoutes'));
 
+// Phase 2 Routes
+app.use('/api/treatments', require('./routes/treatmentRoutes'));
+app.use('/api/medical-profiles', require('./routes/medicalProfileRoutes'));
+app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
+app.use('/api/audit-logs', require('./routes/auditLogRoutes'));
+app.use('/api/expiry', require('./routes/expiryRoutes'));
+app.use('/api/compliance', require('./routes/complianceRoutes'));
+app.use('/api/inspections', require('./routes/inspectionRoutes'));
+app.use('/api/analytics', require('./routes/analyticsRoutes'));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'SimplyAID API is running', timestamp: new Date().toISOString() });

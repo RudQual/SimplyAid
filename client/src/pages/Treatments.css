@@ -1,0 +1,158 @@
+.treatments-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.treatments-filters .search-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  min-width: 260px;
+}
+.treatments-filters .search-box input {
+  border: none;
+  background: transparent;
+  padding: 10px 0;
+  flex: 1;
+}
+.treatments-filters .search-box input:focus {
+  box-shadow: none;
+}
+.treatments-filters select {
+  width: auto;
+  min-width: 160px;
+}
+.employee-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.employee-avatar-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--info));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+.treatment-desc {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 16px 0;
+}
+.page-info {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* New Treatment Form */
+.treatment-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.treatment-form-grid .full-width {
+  grid-column: 1 / -1;
+}
+.medicine-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 36px;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+.medicine-row .remove-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.medicine-row .remove-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* Treatment Detail */
+.treatment-detail-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+.treatment-timeline {
+  position: relative;
+  padding-left: 24px;
+}
+.treatment-timeline::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-light);
+}
+.timeline-item {
+  position: relative;
+  padding-bottom: 20px;
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-card);
+}
+.detail-row {
+  display: flex;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.detail-label {
+  width: 140px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.detail-value {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 1024px) {
+  .treatment-form-grid { grid-template-columns: 1fr; }
+  .treatment-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .treatments-filters { flex-direction: column; }
+  .treatments-filters .search-box { min-width: unset; width: 100%; }
+  .treatments-filters select { width: 100%; }
+}

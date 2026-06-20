@@ -74,9 +74,9 @@ const NewIncident = () => {
           {STEPS.map((s,i) => (
             <div key={i} style={{flex:1,display:'flex',alignItems:'center',gap:8}}>
               <div style={{width:28,height:28,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.8rem',fontWeight:700,
-                background: i <= step ? 'var(--accent)' : 'var(--bg-tertiary)', color: i <= step ? '#fff' : 'var(--text-muted)', flexShrink:0}}>{i+1}</div>
-              <span style={{fontSize:'0.82rem',fontWeight:i===step?600:400,color:i===step?'var(--text-primary)':'var(--text-muted)',whiteSpace:'nowrap'}}>{s}</span>
-              {i < STEPS.length-1 && <div style={{flex:1,height:2,background:i<step?'var(--accent)':'var(--border)',borderRadius:2}}></div>}
+                background: i <= step ? 'var(--blue-600)' : 'var(--bg-app)', color: i <= step ? '#fff' : 'var(--text-muted)', flexShrink:0, border: i <= step ? 'none' : '1px solid var(--border-color)'}}>{i+1}</div>
+              <span style={{fontSize:'0.82rem',fontWeight:i===step?600:400,color:i===step?'var(--text-main)':'var(--text-muted)',whiteSpace:'nowrap'}}>{s}</span>
+              {i < STEPS.length-1 && <div style={{flex:1,height:2,background:i<step?'var(--blue-600)':'var(--border-color)',borderRadius:2}}></div>}
             </div>
           ))}
         </div>
@@ -153,16 +153,16 @@ const NewIncident = () => {
             </div>
             {form.outcome === 'hospitalized' && <div className="form-group"><label className="form-label">Hospital Name</label><input value={form.hospitalName} onChange={e => set('hospitalName', e.target.value)} /></div>}
             {(parseInt(form.daysLost) >= 2 || form.severity === 'fatal') && (
-              <div style={{padding:16,background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,display:'flex',gap:10,alignItems:'center',marginTop:12}}>
-                <AlertTriangle size={20} color="var(--danger)" />
-                <div><div style={{fontWeight:600,color:'var(--danger)',fontSize:'0.9rem'}}>This incident is reportable under Section 88</div><div style={{fontSize:'0.82rem',color:'var(--text-secondary)'}}>Form 18 will need to be generated and submitted to the Inspector of Factories.</div></div>
+              <div style={{padding:16,background:'var(--red-50)',border:'1px solid var(--red-600)',borderRadius:8,display:'flex',gap:10,alignItems:'center',marginTop:12}}>
+                <AlertTriangle size={20} color="var(--red-600)" />
+                <div><div style={{fontWeight:600,color:'var(--red-600)',fontSize:'0.9rem'}}>This incident is reportable under Section 88</div><div style={{fontSize:'0.82rem',color:'var(--text-secondary)'}}>Form 18 will need to be generated and submitted to the Inspector of Factories.</div></div>
               </div>
             )}
           </div>
         )}
 
         {/* Navigation */}
-        <div style={{display:'flex',justifyContent:'space-between',marginTop:28,paddingTop:20,borderTop:'1px solid var(--border)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:28,paddingTop:20,borderTop:'1px solid var(--border-color)'}}>
           <button className="btn btn-ghost" onClick={() => setStep(s => s-1)} disabled={step === 0}><ArrowLeft size={16} /> {t('common.back')}</button>
           {step < STEPS.length - 1 ? (
             <button className="btn btn-primary" onClick={() => setStep(s => s+1)} disabled={!canNext()}>{t('common.next')} <ArrowRight size={16} /></button>

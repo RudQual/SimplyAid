@@ -89,10 +89,10 @@ const Dashboard = () => {
           {monthlyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
                 <XAxis dataKey="month" stroke="var(--text-muted)" fontSize={12} />
                 <YAxis stroke="var(--text-muted)" fontSize={12} />
-                <Tooltip contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-main)', boxShadow: 'var(--shadow-md)' }} />
                 <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6' }} name="Total" />
                 <Line type="monotone" dataKey="serious" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444' }} name="Serious" />
               </LineChart>
@@ -105,10 +105,10 @@ const Dashboard = () => {
           {deptData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={deptData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
                 <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} angle={-20} textAnchor="end" height={60} />
                 <YAxis stroke="var(--text-muted)" fontSize={12} />
-                <Tooltip contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-main)', boxShadow: 'var(--shadow-md)' }} />
                 <Bar dataKey="count" fill="#3b82f6" radius={[4,4,0,0]} name="Incidents" />
                 <Bar dataKey="serious" fill="#ef4444" radius={[4,4,0,0]} name="Serious" />
               </BarChart>

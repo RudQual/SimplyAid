@@ -1,0 +1,32 @@
+.prescription-medicine-row {
+  display: grid;
+  grid-template-columns: 1.5fr 0.8fr 0.8fr 0.8fr 0.8fr 36px;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+.prescription-medicine-row input {
+  font-size: 0.85rem;
+  padding: 8px 10px;
+}
+.prescription-medicine-row .remove-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.prescription-medicine-row .remove-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .prescription-medicine-row {
+    grid-template-columns: 1fr;
+  }
+}
