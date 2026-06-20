@@ -361,3 +361,12 @@ cd client && npm run build
  -   * * S c a n   H i s t o r y : * *   A d m i n s   c a n   v i e w   s c a n   h i s t o r y   f o r   p h y s i c a l   I D   u s a g e s . 
  -   * * C o n f l i c t   R e s o l u t i o n : * *   I n t e g r a t e d   t h e   n e w   f r o n t e n d   r o u t e s   ( \ / e m p l o y e e s / : i d / c a r d \ ,   \ / s c a n - h i s t o r y \ )   a n d   b a c k e n d   e n d p o i n t s   ( \ / a p i / e m p l o y e e s \ )   w h i l e   e x p l i c i t l y   s t r i p p i n g   o u t   o l d   r o l e s   ( s a f e t y _ o f f i c e r ,   f i r s t _ a i d e r )   t o   e n f o r c e   o u r   S t e p   9   c l e a n u p .  
  
+ 
+ - - - 
+ 
+ # #   S T E P   1 2 :   C o m p l i a n c e   A n a l y t i c s   S u i t e 
+ M e r g e d   c o l l a b o r a t o r   P R   # 3   ( C o m p l i a n c e   A n a l y t i c s   S u i t e )   w h i l e   p r e s e r v i n g   t h e   c o r e   P r e s c r i p t i o n   m o d e l s   r e q u i r e d   f o r   V i r t u a l   V e n d i n g   M a c h i n e   i n t e g r a t i o n . 
+ -   * * F e a t u r e s   A d d e d : * *   C o m p l i a n c e   D a s h b o a r d ,   S a f e t y   A n a l y t i c s ,   E x p i r y   t r a c k i n g ,   A I   A s s i s t a n t ,   a n d   M e d i c a l   T r e a t m e n t s   l o g g i n g . 
+ -   * * C o n f l i c t   R e s o l u t i o n : * *   A d d r e s s e d   s e v e r e   a r c h i t e c t u r a l   d i v e r g e n c e   i n   t h e   \ P r e s c r i p t i o n \   e n t i t y   b y   e x p l i c i t l y   r e j e c t i n g   t h e   P R   # 3   s t a n d a l o n e   t e x t - b a s e d   p r e s c r i p t i o n s   i n   f a v o r   o f   o u r   S t e p   7   i n v e n t o r y - l i n k e d   p r e s c r i p t i o n s ,   e n s u r i n g   t h e   V i r t u a l   V e n d i n g   M a c h i n e   c o n t i n u e s   t o   f u n c t i o n . 
+ -   * * R o l e   R e s t r i c t i o n s : * *   M a i n t a i n e d   s t r i c t   a d h e r e n c e   t o   t h e   2 - r o l e   s y s t e m   ( A d m i n   a n d   E m p l o y e e )   b y   r e s t r i c t i n g   n e w   d a s h b o a r d s   t o   A d m i n s   o n l y .  
+ 
