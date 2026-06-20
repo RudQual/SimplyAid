@@ -350,3 +350,14 @@ cd client && npm run build
 ### 10.2 Incident Report Department Fix
 - **Root Cause**: The `NewIncident` page calls `getUsers()` to populate the "Treated By" dropdown. But `GET /api/users` was behind `authorize('admin')`, causing 403 for employees.
 - **Fix (`userRoutes.js`)**: Removed `authorize('admin')` from `GET /` and `GET /:id` — all authenticated users can now read the user list. Write operations (PUT, DELETE) remain admin-only.
+
+ 
+ - - - 
+ 
+ # #   S T E P   1 1 :   E m p l o y e e   P r o f i l e s ,   Q R   C o d e s   &   S c a n   H i s t o r y 
+ M e r g e d   c o l l a b o r a t o r   P R   # 2   a n d   r e s o l v e d   c o n f l i c t s   t o   m a i n t a i n   o u r   s t r i c t   2 - R o l e   S y s t e m   ( A d m i n   a n d   E m p l o y e e ) . 
+ -   * * E m p l o y e e   P r o f i l e   &   D i g i t a l   I D   C a r d s : * *   E m p l o y e e s   n o w   h a v e   a u t o - g e n e r a t e d   I D   n u m b e r s   a n d   d i g i t a l   I D   c a r d s   w i t h   d y n a m i c   Q R   c o d e s . 
+ -   * * Q R   I n t e g r a t i o n : * *   B u i l t   w i t h   \ q r c o d e . r e a c t \   o n   f r o n t e n d ,   a u t o - g e n e r a t e d   o n   s i g n u p   b a c k e n d . 
+ -   * * S c a n   H i s t o r y : * *   A d m i n s   c a n   v i e w   s c a n   h i s t o r y   f o r   p h y s i c a l   I D   u s a g e s . 
+ -   * * C o n f l i c t   R e s o l u t i o n : * *   I n t e g r a t e d   t h e   n e w   f r o n t e n d   r o u t e s   ( \ / e m p l o y e e s / : i d / c a r d \ ,   \ / s c a n - h i s t o r y \ )   a n d   b a c k e n d   e n d p o i n t s   ( \ / a p i / e m p l o y e e s \ )   w h i l e   e x p l i c i t l y   s t r i p p i n g   o u t   o l d   r o l e s   ( s a f e t y _ o f f i c e r ,   f i r s t _ a i d e r )   t o   e n f o r c e   o u r   S t e p   9   c l e a n u p .  
+ 
