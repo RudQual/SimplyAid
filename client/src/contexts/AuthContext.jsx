@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState(() => localStorage.getItem('simplyaid_lang') || 'en');
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const t = useCallback((path) => {
     const keys = path.split('.');
@@ -53,10 +54,24 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const hasRole = (...roles) => user && roles.includes(user.role);
+  // TEMPORARILY DISABLED: Allow all logged in users to access all UI elements
+  const hasRole = (...roles) => true;
+
+  // Guest mode helpers
+  const isGuest = !loading && !user;
+
+  // Call this to guard an action. If user is logged in, runs the callback immediately.
+  // If guest, shows the auth-required modal instead.
+  const requireAuth = (callback) => {
+    if (user) {
+      callback();
+    } else {
+      setShowAuthModal(true);
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, hasRole, t, lang, switchLang }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, hasRole, t, lang, switchLang, isGuest, requireAuth, showAuthModal, setShowAuthModal }}>
       {children}
     </AuthContext.Provider>
   );

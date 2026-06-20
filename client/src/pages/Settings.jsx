@@ -5,14 +5,16 @@ import { Globe, Lock, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Settings = () => {
-  const { t, user, lang, switchLang } = useAuth();
+  const { t, user, isGuest, lang, switchLang, requireAuth } = useAuth();
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
 
   const handlePwChange = async (e) => {
     e.preventDefault();
-    if (pwForm.newPassword !== pwForm.confirm) { toast.error('Passwords do not match'); return; }
-    try { await changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }); toast.success('Password changed'); setPwForm({ currentPassword: '', newPassword: '', confirm: '' }); }
-    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+    requireAuth(async () => {
+      if (pwForm.newPassword !== pwForm.confirm) { toast.error('Passwords do not match'); return; }
+      try { await changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }); toast.success('Password changed'); setPwForm({ currentPassword: '', newPassword: '', confirm: '' }); }
+      catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+    });
   };
 
   return (
@@ -31,9 +33,15 @@ const Settings = () => {
         <div className="card">
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}><Building2 size={20} color="var(--info)" /><h3 className="card-title" style={{margin:0}}>Company Info</h3></div>
           <div style={{fontSize:'0.9rem',color:'var(--text-secondary)'}}>
-            <p><strong>Company:</strong> {user?.company?.name || '-'}</p>
-            <p><strong>Role:</strong> {user?.role?.replace('_',' ')}</p>
-            <p><strong>Department:</strong> {user?.department?.name || '-'}</p>
+            {isGuest ? (
+              <p style={{color:'var(--text-muted)',fontStyle:'italic'}}>Sign in to view your company and profile details.</p>
+            ) : (
+              <>
+                <p><strong>Company:</strong> {user?.company?.name || '-'}</p>
+                <p><strong>Role:</strong> {user?.role?.replace('_',' ')}</p>
+                <p><strong>Department:</strong> {user?.department?.name || '-'}</p>
+              </>
+            )}
           </div>
         </div>
 

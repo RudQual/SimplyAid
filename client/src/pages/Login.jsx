@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Heart, Mail, Lock, ArrowRight, AlertCircle, User, Eye, EyeOff } from 'lucide-react';
 import './Login.css';
 
 const Login = () => {
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [employeeId, setEmployeeId] = useState('');
@@ -18,6 +19,11 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login, signup, t } = useAuth();
   const navigate = useNavigate();
+
+  // Sync with URL param changes (e.g., navigating from modal)
+  useEffect(() => {
+    if (searchParams.get('mode') === 'signup') setIsSignUp(true);
+  }, [searchParams]);
 
   // --- Form Submit ---
   const handleSubmit = async (e) => {
@@ -43,7 +49,16 @@ const Login = () => {
   };
 
   const toggleMode = () => {
-    setIsSignUp(prev => !prev);
+    const newMode = !isSignUp;
+    setIsSignUp(newMode);
+    
+    if (newMode) {
+      searchParams.set('mode', 'signup');
+    } else {
+      searchParams.delete('mode');
+    }
+    navigate(`?${searchParams.toString()}`, { replace: true });
+    
     setError('');
     setName('');
     setEmail('');

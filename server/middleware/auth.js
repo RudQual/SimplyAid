@@ -46,12 +46,13 @@ const protect = async (req, res, next) => {
 // Authorize by role
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: `Role '${req.user.role}' is not authorized to access this resource`
-      });
-    }
+    // TEMPORARILY DISABLED: Allow all logged in users to access all features
+    // if (!roles.includes(req.user.role)) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: `Role '${req.user.role}' is not authorized to access this resource`
+    //   });
+    // }
     next();
   };
 };

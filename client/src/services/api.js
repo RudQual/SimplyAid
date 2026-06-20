@@ -79,4 +79,15 @@ export const consumePrescription = (id, data) => API.put(`/prescriptions/${id}/t
 export const vendingLogin = (data) => API.post('/vending/login', data);
 export const vendingDispense = (data) => API.post('/vending/dispense', data);
 
+// Employee ID Card & Profile
+export const getEmployeeProfile = (id) => API.get(`/employees/profile/${id}`);
+export const updateEmployeeProfile = (id, data) => API.put(`/employees/profile/${id}`, data);
+export const getEmployeeByQr = (employeeId) => API.get(`/employees/qr/${employeeId}`);
+export const regenerateQr = (id) => API.post(`/employees/qr/${id}/regenerate`);
+export const downloadQr = (id) => API.get(`/employees/qr/${id}/download`, { responseType: 'blob' });
+export const uploadProfilePhoto = (id, formData) => API.put(`/employees/${id}/photo`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const getEmployeeCardData = (id) => API.get(`/employees/card/${id}`);
+export const getScanHistory = (params) => API.get('/employees/scan-history', { params });
+export const getEmployeeScanHistory = (employeeId) => API.get(`/employees/scan-history/${employeeId}`);
+
 export default API;

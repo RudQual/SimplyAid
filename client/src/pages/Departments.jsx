@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 const RISK_COLORS = { low: 'green', medium: 'amber', high: 'red', critical: 'fatal' };
 
 const Departments = () => {
-  const { t } = useAuth();
+  const { t, requireAuth } = useAuth();
   const [depts, setDepts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -17,8 +17,8 @@ const Departments = () => {
   useEffect(() => { load(); }, []);
   const load = async () => { try { const r = await getDepartments(); setDepts(r.data.data); } catch(e){} finally { setLoading(false); } };
 
-  const openAdd = () => { setForm({ name: '', code: '', location: '', workerCount: '', riskLevel: 'medium', description: '' }); setEditing(null); setShowModal(true); };
-  const openEdit = (d) => { setForm({ name: d.name, code: d.code, location: d.location || '', workerCount: d.workerCount || '', riskLevel: d.riskLevel, description: d.description || '' }); setEditing(d._id); setShowModal(true); };
+  const openAdd = () => { requireAuth(() => { setForm({ name: '', code: '', location: '', workerCount: '', riskLevel: 'medium', description: '' }); setEditing(null); setShowModal(true); }); };
+  const openEdit = (d) => { requireAuth(() => { setForm({ name: d.name, code: d.code, location: d.location || '', workerCount: d.workerCount || '', riskLevel: d.riskLevel, description: d.description || '' }); setEditing(d._id); setShowModal(true); }); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,8 +30,12 @@ const Departments = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Deactivate this department?')) return;
-    try { await deleteDepartment(id); toast.success('Deactivated'); load(); } catch(e) { toast.error('Failed'); }
+    requireAuth(() => {
+      if (!confirm('Deactivate this department?')) return;
+      (async () => {
+        try { await deleteDepartment(id); toast.success('Deactivated'); load(); } catch(e) { toast.error('Failed'); }
+      })();
+    });
   };
 
   return (

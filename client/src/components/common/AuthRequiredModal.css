@@ -1,0 +1,175 @@
+/* ============================================
+   AuthRequiredModal — Premium glassmorphism
+   ============================================ */
+
+.auth-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: authModalBgIn 0.3s ease;
+}
+
+@keyframes authModalBgIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.auth-modal-card {
+  position: relative;
+  background: rgba(22, 30, 46, 0.92);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 20px;
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.5),
+    0 0 60px rgba(99, 102, 241, 0.08) inset;
+  animation: authModalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.auth-modal-card::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+@keyframes authModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Lock icon container */
+.auth-modal-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(59, 130, 246, 0.15));
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  color: #818cf8;
+  animation: authIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes authIconPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
+  50% { box-shadow: 0 0 0 12px rgba(99, 102, 241, 0); }
+}
+
+.auth-modal-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary, #f1f5f9);
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+
+.auth-modal-message {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+/* CTA Buttons */
+.auth-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.auth-modal-btn-primary {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-modal-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(59, 130, 246, 0.35);
+}
+
+.auth-modal-btn-primary:active {
+  transform: translateY(0);
+}
+
+.auth-modal-btn-secondary {
+  width: 100%;
+  padding: 13px;
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.25s ease;
+}
+
+.auth-modal-btn-secondary:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+/* Dismiss link */
+.auth-modal-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 8px 16px;
+  transition: color 0.2s;
+  margin-top: 4px;
+}
+
+.auth-modal-dismiss:hover {
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .auth-modal-card {
+    margin: 16px;
+    padding: 32px 24px;
+  }
+}

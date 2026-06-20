@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Company = require('../models/Company');
+const { generateEmployeeId } = require('../utils/employeeIdGenerator');
+const { generateQrCode } = require('../utils/qrService');
 
 // Generate JWT
 const generateToken = (id) => {
@@ -51,6 +53,9 @@ exports.register = async (req, res, next) => {
       });
     }
 
+    // Auto-generate employee ID if not provided
+    const autoEmployeeId = employeeId || await generateEmployeeId(company);
+
     const user = await User.create({
       name,
       email,
@@ -58,10 +63,21 @@ exports.register = async (req, res, next) => {
       role: role || 'employee',
       company,
       department,
-      employeeId,
+      employeeId: autoEmployeeId,
       phone,
       designation
     });
+
+    // Generate QR code for the new employee
+    try {
+      const qrData = await generateQrCode(user);
+      user.qrCodeId = qrData.qrCodeId;
+      user.qrCodeData = qrData.qrCodeData;
+      user.qrCodeGeneratedAt = qrData.qrCodeGeneratedAt;
+      await user.save();
+    } catch (qrErr) {
+      console.error('QR generation failed (non-blocking):', qrErr.message);
+    }
 
     // Don't return password
     user.password = undefined;
@@ -109,14 +125,28 @@ exports.signup = async (req, res, next) => {
     // Auto-assign default company
     const defaultCompany = await getDefaultCompany();
 
+    // Auto-generate employee ID for self-signup
+    const autoEmpId = defaultCompany ? await generateEmployeeId(defaultCompany) : undefined;
+
     const user = await User.create({
       name,
       email,
       password,
-      employeeId,
       role: (role === 'admin' || role === 'employee') ? role : 'employee',
-      company: defaultCompany
+      company: defaultCompany,
+      employeeId: employeeId || autoEmpId
     });
+
+    // Generate QR code for the new employee
+    try {
+      const qrData = await generateQrCode(user);
+      user.qrCodeId = qrData.qrCodeId;
+      user.qrCodeData = qrData.qrCodeData;
+      user.qrCodeGeneratedAt = qrData.qrCodeGeneratedAt;
+      await user.save();
+    } catch (qrErr) {
+      console.error('QR generation failed (non-blocking):', qrErr.message);
+    }
 
     // Populate company for response
     await user.populate('company', 'name code');
