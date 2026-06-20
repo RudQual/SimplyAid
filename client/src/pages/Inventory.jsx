@@ -33,11 +33,11 @@ const Inventory = () => {
       <div className="grid-3">
         {boxes.map(box => (
           <div key={box._id} className="card" style={{cursor:'pointer',position:'relative',overflow:'hidden'}} onClick={() => setSelected(selected?._id === box._id ? null : box)}>
-            <div style={{position:'absolute',top:0,right:0,width:80,height:80,background:`${box.status==='adequate'?'rgba(16,185,129,0.05)':box.status==='needs_replenishment'?'rgba(245,158,11,0.05)':'rgba(239,68,68,0.05)'}`,borderRadius:'0 0 0 80px'}}></div>
+            <div style={{position:'absolute',top:0,right:0,width:80,height:80,background:`${box.status==='adequate'?'var(--green-50)':box.status==='needs_replenishment'?'var(--orange-50)':'var(--red-50)'}`,borderRadius:'0 0 0 80px'}}></div>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{width:40,height:40,borderRadius:10,background:'rgba(59,130,246,0.1)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--accent)'}}><Package size={20} /></div>
-                <div><div style={{fontWeight:700}}>{box.boxId}</div><div style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>Class {box.classType}</div></div>
+                <div style={{width:40,height:40,borderRadius:'var(--radius-md)',background:'var(--blue-50)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--blue-600)'}}><Package size={20} /></div>
+                <div><div style={{fontWeight:700,color:'var(--text-main)'}}>{box.boxId}</div><div style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>Class {box.classType}</div></div>
               </div>
               <span className={`badge badge-${box.status}`}>{statusIcon[box.status]} {t(`inventory.${box.status}`)}</span>
             </div>
@@ -52,16 +52,16 @@ const Inventory = () => {
 
             {/* Expanded item list */}
             {selected?._id === box._id && box.items?.length > 0 && (
-              <div style={{marginTop:16,paddingTop:16,borderTop:'1px solid var(--border)'}}>
-                <h4 style={{fontSize:'0.85rem',fontWeight:700,marginBottom:8}}>Items ({box.items.length})</h4>
+              <div style={{marginTop:16,paddingTop:16,borderTop:'1px solid var(--border-color)'}}>
+                <h4 style={{fontSize:'0.85rem',fontWeight:700,marginBottom:8,color:'var(--text-main)'}}>Items ({box.items.length})</h4>
                 {box.items.map((item, i) => {
                   const pct = item.requiredQty > 0 ? (item.currentQty / item.requiredQty) * 100 : 100;
                   return (
                     <div key={i} style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,fontSize:'0.82rem'}}>
                       <span style={{flex:1,color:'var(--text-secondary)'}}>{item.item?.name || 'Item'}</span>
-                      <span style={{color:pct<50?'var(--danger)':pct<100?'var(--warning)':'var(--success)',fontWeight:600,minWidth:50,textAlign:'right'}}>{item.currentQty}/{item.requiredQty}</span>
-                      <div style={{width:60,height:4,borderRadius:2,background:'var(--border)'}}>
-                        <div style={{width:`${Math.min(pct,100)}%`,height:'100%',borderRadius:2,background:pct<50?'var(--danger)':pct<100?'var(--warning)':'var(--success)',transition:'width 0.3s ease'}}></div>
+                      <span style={{color:pct<50?'var(--red-600)':pct<100?'var(--orange-500)':'var(--green-500)',fontWeight:600,minWidth:50,textAlign:'right'}}>{item.currentQty}/{item.requiredQty}</span>
+                      <div style={{width:60,height:4,borderRadius:2,background:'var(--border-color)'}}>
+                        <div style={{width:`${Math.min(pct,100)}%`,height:'100%',borderRadius:2,background:pct<50?'var(--red-600)':pct<100?'var(--orange-500)':'var(--green-500)',transition:'width 0.3s ease'}}></div>
                       </div>
                     </div>
                   );

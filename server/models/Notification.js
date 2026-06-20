@@ -20,7 +20,11 @@ const notificationSchema = new mongoose.Schema({
       'certification_expiry',
       'inspection_due',
       'report_pending',
-      'system'
+      'system',
+      'expiry_alert',
+      'compliance_alert',
+      'treatment_alert',
+      'prescription_alert'
     ],
     required: true
   },
@@ -44,12 +48,22 @@ const notificationSchema = new mongoose.Schema({
   },
   severity: {
     type: String,
-    enum: ['info', 'warning', 'critical'],
+    enum: ['low', 'info', 'warning', 'critical'],
     default: 'info'
+  },
+  priority: {
+    type: String,
+    enum: ['critical', 'high', 'medium', 'low'],
+    default: 'medium'
+  },
+  category: {
+    type: String,
+    enum: ['inventory', 'expiry', 'compliance', 'incident', 'certification', 'treatment', 'prescription', 'system'],
+    default: 'system'
   },
   relatedModel: {
     type: String,
-    enum: ['Incident', 'FirstAidBox', 'User', 'Department']
+    enum: ['Incident', 'FirstAidBox', 'User', 'Department', 'TreatmentRecord', 'Prescription', 'InventoryItem']
   },
   relatedId: {
     type: mongoose.Schema.Types.ObjectId
@@ -59,6 +73,9 @@ const notificationSchema = new mongoose.Schema({
     default: false
   },
   readAt: {
+    type: Date
+  },
+  archivedAt: {
     type: Date
   }
 }, {

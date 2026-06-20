@@ -95,7 +95,7 @@ const Employees = () => {
                       {status?.replace('_', ' ')}
                     </span>
                   </td>
-                  <td>{u.firstAidCertified ? <Award size={16} color="var(--success)" /> : '—'}</td>
+                  <td>{u.firstAidCertified ? <Award size={16} color="var(--green-500)" /> : '—'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button className="btn btn-ghost btn-sm" title="View Profile" onClick={() => navigate(`/employees/${u._id}`)} style={{ padding: '4px 8px' }}>

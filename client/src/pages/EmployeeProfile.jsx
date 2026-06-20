@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getEmployeeProfile, updateEmployeeProfile, downloadQr,
-  regenerateQr, uploadProfilePhoto, getEmployeeScanHistory
+  regenerateQr, uploadProfilePhoto, getEmployeeScanHistory,
+  getMedicalProfile, getEmployeeTreatments, getActivePrescriptions
 } from '../services/api';
 import {
   ArrowLeft, User, Building2, Shield, Droplets, Phone, Award,
   QrCode, Download, RefreshCw, CreditCard, Camera, Edit3, X,
-  Calendar, Mail, Hash, MapPin, Clock, AlertTriangle
+  Calendar, Mail, Hash, MapPin, Clock, AlertTriangle, Stethoscope, FileText, Activity
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './EmployeeProfile.css';
@@ -24,6 +25,11 @@ const EmployeeProfile = () => {
   const [editSection, setEditSection] = useState('');
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const [medicalProfile, setMedicalProfile] = useState(null);
+  const [treatments, setTreatments] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
 
   const isSelf = currentUser?._id === id;
   const isAdmin = hasRole('admin');
@@ -35,12 +41,18 @@ const EmployeeProfile = () => {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const [profileRes, scanRes] = await Promise.all([
+      const [profileRes, scanRes, medRes, trtRes, rxRes] = await Promise.all([
         getEmployeeProfile(id),
-        getEmployeeScanHistory(id).catch(() => ({ data: { data: [] } }))
+        getEmployeeScanHistory(id).catch(() => ({ data: { data: [] } })),
+        getMedicalProfile(id).catch(() => ({ data: { data: null } })),
+        getEmployeeTreatments(id).catch(() => ({ data: { data: [] } })),
+        getActivePrescriptions(id).catch(() => ({ data: { data: [] } }))
       ]);
       setEmployee(profileRes.data.data);
       setScanHistory(scanRes.data.data || []);
+      setMedicalProfile(medRes.data.data);
+      setTreatments(trtRes.data.data || []);
+      setPrescriptions(rxRes.data.data || []);
     } catch (e) {
       toast.error('Failed to load profile');
       navigate('/employees');
@@ -204,9 +216,26 @@ const EmployeeProfile = () => {
         </div>
       </div>
 
+      <div className="profile-tabs">
+        <button className={`profile-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
+          <User size={16} /> Overview
+        </button>
+        <button className={`profile-tab ${activeTab === 'medical' ? 'active' : ''}`} onClick={() => setActiveTab('medical')}>
+          <Activity size={16} /> Medical Profile
+        </button>
+        <button className={`profile-tab ${activeTab === 'treatments' ? 'active' : ''}`} onClick={() => setActiveTab('treatments')}>
+          <Stethoscope size={16} /> Treatments ({treatments.length})
+        </button>
+        <button className={`profile-tab ${activeTab === 'prescriptions' ? 'active' : ''}`} onClick={() => setActiveTab('prescriptions')}>
+          <FileText size={16} /> Active Prescriptions ({prescriptions.length})
+        </button>
+      </div>
+
       {/* Profile Sections Grid */}
       <div className="profile-sections">
-        {/* Personal Info */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Personal Info */}
         <div className="profile-section">
           <div className="profile-section-title">
             <User size={16} /> {t('employee.personalInfo')}
@@ -407,34 +436,84 @@ const EmployeeProfile = () => {
           </div>
         </div>
 
-        {/* Recent Scan History */}
-        {scanHistory.length > 0 && (
+          </>
+        )}
+
+        {activeTab === 'medical' && (
           <div className="profile-section full-width">
-            <div className="profile-section-title">
-              <Clock size={16} /> {t('employee.scanHistory')} (Recent)
-            </div>
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date & Time</th>
-                    <th>Action</th>
-                    <th>Scanned By</th>
-                    <th>IP Address</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scanHistory.slice(0, 10).map(log => (
-                    <tr key={log._id}>
-                      <td>{new Date(log.scanTime).toLocaleString('en-IN')}</td>
-                      <td><span className="badge badge-reported">{log.actionType?.replace('_', ' ')}</span></td>
-                      <td>{log.scannedBy?.name || '—'}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.ipAddress || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <div className="profile-section-title"><Activity size={16} /> Comprehensive Medical Profile</div>
+            {medicalProfile ? (
+              <div className="profile-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                <div className="profile-info-item"><span className="profile-info-label">Blood Group</span><span className="profile-info-value">{medicalProfile.bloodGroup || '—'}</span></div>
+                <div className="profile-info-item"><span className="profile-info-label">Height (cm)</span><span className="profile-info-value">{medicalProfile.physicalAttributes?.height || '—'}</span></div>
+                <div className="profile-info-item"><span className="profile-info-label">Weight (kg)</span><span className="profile-info-value">{medicalProfile.physicalAttributes?.weight || '—'}</span></div>
+                <div className="profile-info-item"><span className="profile-info-label">Vision</span><span className="profile-info-value">{medicalProfile.physicalAttributes?.vision || '—'}</span></div>
+                
+                <div className="profile-info-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="profile-info-label">Allergies</span>
+                  {medicalProfile.allergies?.length > 0 ? <div className="tag-list">{medicalProfile.allergies.map((a, i) => <span key={i} className="tag-item">{a}</span>)}</div> : <span className="muted">None recorded</span>}
+                </div>
+                
+                <div className="profile-info-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="profile-info-label">Pre-existing Conditions</span>
+                  {medicalProfile.preExistingConditions?.length > 0 ? <div className="tag-list">{medicalProfile.preExistingConditions.map((c, i) => <span key={i} className="tag-item" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>{c}</span>)}</div> : <span className="muted">None recorded</span>}
+                </div>
+
+                <div className="profile-info-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="profile-info-label">Current Medications</span>
+                  {medicalProfile.currentMedications?.length > 0 ? <div className="tag-list">{medicalProfile.currentMedications.map((m, i) => <span key={i} className="tag-item" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>{m}</span>)}</div> : <span className="muted">None recorded</span>}
+                </div>
+
+                <div className="profile-info-item" style={{ gridColumn: '1 / -1' }}><span className="profile-info-label">Notes</span><span className="profile-info-value">{medicalProfile.notes || '—'}</span></div>
+              </div>
+            ) : <div className="empty-state"><p>No enhanced medical profile exists for this employee.</p></div>}
+          </div>
+        )}
+
+        {activeTab === 'treatments' && (
+          <div className="profile-section full-width">
+            <div className="profile-section-title"><Stethoscope size={16} /> Treatment History</div>
+            {treatments.length > 0 ? (
+              <div className="table-container" style={{ border: 'none' }}>
+                <table className="data-table">
+                  <thead><tr><th>ID</th><th>Date</th><th>Injury</th><th>Severity</th><th>Treatment</th></tr></thead>
+                  <tbody>
+                    {treatments.map(t => (
+                      <tr key={t._id} onClick={() => navigate(`/treatments/${t._id}`)} style={{ cursor: 'pointer' }}>
+                        <td style={{ color: 'var(--blue-600)', fontWeight: 600 }}>{t.treatmentId}</td>
+                        <td>{new Date(t.treatmentDate).toLocaleDateString()}</td>
+                        <td>{t.injuryType}</td>
+                        <td><span className={`badge badge-${t.injurySeverity}`}>{t.injurySeverity}</span></td>
+                        <td>{t.treatmentProvided?.substring(0, 40)}...</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <div className="empty-state"><p>No treatments logged for this employee.</p></div>}
+          </div>
+        )}
+
+        {activeTab === 'prescriptions' && (
+          <div className="profile-section full-width">
+            <div className="profile-section-title"><FileText size={16} /> Active Prescriptions</div>
+            {prescriptions.length > 0 ? (
+              <div className="table-container" style={{ border: 'none' }}>
+                <table className="data-table">
+                  <thead><tr><th>Doctor</th><th>Date</th><th>Medicines</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {prescriptions.map(p => (
+                      <tr key={p._id}>
+                        <td>{p.doctorName}</td>
+                        <td>{new Date(p.issueDate).toLocaleDateString()}</td>
+                        <td>{p.medicines?.length || 0} item(s)</td>
+                        <td><span className="badge badge-green">{p.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <div className="empty-state"><p>No active prescriptions.</p></div>}
           </div>
         )}
       </div>

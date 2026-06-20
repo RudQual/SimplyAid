@@ -142,6 +142,42 @@
   flex-shrink: 0;
 }
 
+/* Tabs */
+.profile-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  overflow-x: auto;
+}
+
+.profile-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.profile-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.profile-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
 /* Profile Sections */
 .profile-sections {
   display: grid;

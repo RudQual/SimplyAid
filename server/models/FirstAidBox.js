@@ -21,6 +21,20 @@ const boxItemSchema = new mongoose.Schema({
   },
   expiryDate: {
     type: Date
+  },
+  batchNumber: {
+    type: String,
+    trim: true
+  },
+  manufacturingDate: {
+    type: Date
+  },
+  supplier: {
+    type: String,
+    trim: true
+  },
+  purchaseDate: {
+    type: Date
   }
 }, { _id: false });
 
@@ -98,6 +112,22 @@ const firstAidBoxSchema = new mongoose.Schema({
     enum: ['adequate', 'needs_replenishment', 'overdue_inspection', 'inactive'],
     default: 'adequate'
   },
+  riskCategory: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'critical'],
+    default: 'medium'
+  },
+  qrCodeId: {
+    type: String,
+    trim: true
+  },
+  qrCodeData: {
+    type: String,
+    select: false
+  },
+  qrCodeGeneratedAt: {
+    type: Date
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -125,5 +155,39 @@ firstAidBoxSchema.methods.computeStatus = function() {
   
   this.status = 'adequate';
 };
+
+// Get expiry status breakdown for all items in this box
+firstAidBoxSchema.methods.getExpiryStatus = function() {
+  const now = new Date();
+  const d90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+  const d30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const result = { healthy: [], warning: [], critical: [], expired: [] };
+
+  this.items.forEach(item => {
+    if (!item.expiryDate) {
+      result.healthy.push(item);
+      return;
+    }
+    const exp = new Date(item.expiryDate);
+    if (exp < now) result.expired.push(item);
+    else if (exp <= d30) result.critical.push(item);
+    else if (exp <= d90) result.warning.push(item);
+    else result.healthy.push(item);
+  });
+
+  return result;
+};
+
+// Unique QR code ID index
+firstAidBoxSchema.index(
+  { qrCodeId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      qrCodeId: { $exists: true, $ne: null }
+    }
+  }
+);
 
 module.exports = mongoose.model('FirstAidBox', firstAidBoxSchema);
