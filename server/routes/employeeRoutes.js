@@ -8,7 +8,10 @@ const {
   getEmployeeCard,
   getScanHistory,
   getEmployeeScanHistory,
-  updateEmployeeProfile
+  updateEmployeeProfile,
+  getMyProfile,
+  updateMyProfile,
+  validateQrScan
 } = require('../controllers/employeeController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -25,6 +28,13 @@ router.get('/qr/:employeeId', getEmployeeByQr);
 // QR operations (by user _id)
 router.post('/qr/:id/regenerate', regenerateEmployeeQr);
 router.get('/qr/:id/download', downloadQr);
+
+// Profile operations (my profile must come before /profile/:id)
+router.get('/my-profile', getMyProfile);
+router.put('/my-profile', updateMyProfile);
+
+// QR Validation
+router.post('/qr/validate', validateQrScan);
 
 // Profile & card
 router.get('/profile/:id', getEmployeeProfile);

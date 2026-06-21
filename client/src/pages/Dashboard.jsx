@@ -60,6 +60,45 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Profile Completion Banner */}
+      {user && user.profileCompletionPercentage !== undefined && user.profileCompletionPercentage < 100 && (
+        <div 
+          className="profile-completion-banner" 
+          onClick={() => navigate('/profile')}
+          style={{
+            backgroundColor: user.profileCompletionPercentage < 50 ? 'rgba(220, 38, 38, 0.1)' : 'rgba(249, 115, 22, 0.1)',
+            border: `1px solid ${user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316'}`,
+            borderRadius: '10px',
+            padding: '16px 20px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertTriangle color={user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316'} size={24} />
+            <div>
+              <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1rem' }}>Complete your profile to unlock all SimplyAID features</h4>
+              <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                Your profile is currently {user.profileCompletionPercentage}% complete.
+              </p>
+            </div>
+          </div>
+          <button className="btn btn-primary" style={{ 
+            backgroundColor: user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316', 
+            borderColor: user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316',
+            pointerEvents: 'none'
+          }}>
+            Complete Profile
+          </button>
+        </div>
+      )}
+
       {/* Stat Cards */}
       <div className="grid-stats" style={{marginBottom: 24}}>
         <div className="stat-card blue">

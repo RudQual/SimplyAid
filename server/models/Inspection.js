@@ -86,7 +86,7 @@ const inspectionSchema = new mongoose.Schema({
 });
 
 // Auto-generate inspection ID
-inspectionSchema.pre('save', async function(next) {
+inspectionSchema.pre('save', async function() {
   if (!this.inspectionId) {
     const year = new Date().getFullYear();
     const count = await mongoose.model('Inspection').countDocuments({
@@ -98,7 +98,6 @@ inspectionSchema.pre('save', async function(next) {
     });
     this.inspectionId = `INS-${year}-${String(count + 1).padStart(4, '0')}`;
   }
-  next();
 });
 
 // Indexes

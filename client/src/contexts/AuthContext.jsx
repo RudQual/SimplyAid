@@ -52,6 +52,17 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('simplyaid_token');
     localStorage.removeItem('simplyaid_user');
     setUser(null);
+    window.location.href = '/login';
+  };
+
+  const refreshUser = async () => {
+    try {
+      const res = await getMe();
+      setUser(res.data.data);
+      localStorage.setItem('simplyaid_user', JSON.stringify(res.data.data));
+    } catch (e) {
+      console.error('Failed to refresh user:', e);
+    }
   };
 
   // TEMPORARILY DISABLED: Allow all logged in users to access all UI elements
@@ -71,7 +82,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, hasRole, t, lang, switchLang, isGuest, requireAuth, showAuthModal, setShowAuthModal }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser, hasRole, t, lang, switchLang, isGuest, requireAuth, showAuthModal, setShowAuthModal }}>
       {children}
     </AuthContext.Provider>
   );

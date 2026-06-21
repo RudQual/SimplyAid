@@ -20,11 +20,12 @@ import VendingMachine from './pages/VendingMachine';
 import EmployeeProfile from './pages/EmployeeProfile';
 import EmployeeIdCard from './pages/EmployeeIdCard';
 import ScanHistory from './pages/ScanHistory';
+import MyProfile from './pages/MyProfile';
+import QrScan from './pages/QrScan';
 
 // Phase 2 Pages
 import Treatments from './pages/Treatments';
 import NewTreatment from './pages/NewTreatment';
-import TreatmentDetail from './pages/TreatmentDetail';
 import TreatmentDetail from './pages/TreatmentDetail';
 import ExpiryDashboard from './pages/ExpiryDashboard';
 import ComplianceDashboard from './pages/ComplianceDashboard';
@@ -86,6 +87,8 @@ const AppLayout = () => {
           <Route path="/scan-history" element={<ProtectedRoute roles={['admin']}><ScanHistory /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute roles={['admin']}><Settings /></ProtectedRoute>} />
           <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
+          <Route path="/qr-scan" element={<ProtectedRoute><QrScan /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

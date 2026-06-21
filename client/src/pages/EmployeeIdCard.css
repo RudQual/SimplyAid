@@ -63,14 +63,14 @@
 
 /* --- Front Side Styling --- */
 .id-card-front {
-  background: linear-gradient(145deg, rgba(22, 29, 46, 0.85), rgba(10, 14, 26, 0.95));
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.85), rgba(248, 250, 252, 0.95));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(59, 130, 246, 0.2);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 8px 32px rgba(0, 0, 0, 0.1),
     0 0 80px rgba(59, 130, 246, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -142,7 +142,7 @@
   width: 110px;
   height: 110px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1e3a5f, #2d3a52);
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
   border: 3px solid rgba(59, 130, 246, 0.3);
   display: flex;
   align-items: center;
@@ -224,7 +224,7 @@
   align-items: center;
   gap: 16px;
   width: 100%;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .card-qr-img {
@@ -260,14 +260,14 @@
 
 /* --- Back Side Styling --- */
 .id-card-back-face {
-  background: linear-gradient(145deg, rgba(22, 29, 46, 0.9), rgba(10, 14, 26, 0.95));
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.95));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(99, 102, 241, 0.2);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 8px 32px rgba(0, 0, 0, 0.1),
     0 0 80px rgba(99, 102, 241, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -291,9 +291,9 @@
 
 .card-back-section {
   padding: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(0, 0, 0, 0.02);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .card-back-section-title {
@@ -361,7 +361,7 @@
 .card-back-footer {
   margin-top: auto;
   padding: 16px 24px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
   text-align: center;
 }
 

@@ -132,7 +132,7 @@ exports.signup = async (req, res, next) => {
       name,
       email,
       password,
-      role: (role === 'admin' || role === 'employee') ? role : 'employee',
+      role: ['admin', 'employee', 'worker', 'supervisor', 'safety_officer'].includes(role) ? role : 'worker',
       company: defaultCompany,
       employeeId: employeeId || autoEmpId
     });

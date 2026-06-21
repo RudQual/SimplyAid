@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { calculateProfileCompletion } = require('../utils/profileCompletion');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -27,8 +28,16 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'employee'],
-    default: 'employee'
+    enum: ['admin', 'employee', 'worker', 'supervisor', 'safety_officer'],
+    default: 'worker'
+  },
+  profileCompleted: {
+    type: Boolean,
+    default: false
+  },
+  profileCompletionPercentage: {
+    type: Number,
+    default: 0
   },
   company: {
     type: mongoose.Schema.Types.ObjectId,
@@ -62,6 +71,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  factoryLocation: {
+    type: String,
+    trim: true
+  },
+  shiftTiming: {
+    type: String,
+    trim: true
+  },
+  reportingManager: {
+    type: String,
+    trim: true
+  },
   dateOfJoining: {
     type: Date
   },
@@ -85,6 +106,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  currentMedications: [{
+    type: String,
+    trim: true
+  }],
+  disabilityInfo: {
+    type: String,
+    trim: true
+  },
+  additionalMedicalNotes: {
+    type: String,
+    trim: true
+  },
   emergencyContact: {
     name: { type: String, trim: true },
     phone: { type: String, trim: true },
@@ -108,6 +141,17 @@ const userSchema = new mongoose.Schema({
     enum: ['not_trained', 'in_training', 'trained'],
     default: 'not_trained'
   },
+  lastSafetyTrainingDate: {
+    type: Date
+  },
+  ppeAssigned: [{
+    type: String,
+    trim: true
+  }],
+  safetyCertifications: [{
+    type: String,
+    trim: true
+  }],
 
   // --- QR / System Information (new) ---
   qrCodeId: {
@@ -162,7 +206,7 @@ userSchema.index(
 );
 
 // Hash password and clean empty fields before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function() {
   if (this.employeeId === '') {
     this.employeeId = undefined;
   }
@@ -171,13 +215,17 @@ userSchema.pre('save', async function(next) {
   if (this.isModified('employeeStatus')) {
     this.isActive = ['active', 'on_leave'].includes(this.employeeStatus);
   }
+
+  // Auto-calculate profile completion
+  const completion = calculateProfileCompletion(this);
+  this.profileCompletionPercentage = completion.percentage;
+  this.profileCompleted = completion.completed;
   
   if (!this.isModified('password') || !this.password) {
-    return next();
+    return;
   }
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // Compare password method

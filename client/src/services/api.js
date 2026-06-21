@@ -76,8 +76,6 @@ export const archiveNotification = (id) => API.put(`/notifications/${id}/archive
 export const getNotificationStats = () => API.get('/notifications/stats');
 
 // Prescriptions
-export const getPrescriptions = () => API.get('/prescriptions');
-export const createPrescription = (data) => API.post('/prescriptions', data);
 export const consumePrescription = (id, data) => API.put(`/prescriptions/${id}/take`, data);
 
 // Vending Machine
@@ -94,6 +92,11 @@ export const uploadProfilePhoto = (id, formData) => API.put(`/employees/${id}/ph
 export const getEmployeeCardData = (id) => API.get(`/employees/card/${id}`);
 export const getScanHistory = (params) => API.get('/employees/scan-history', { params });
 export const getEmployeeScanHistory = (employeeId) => API.get(`/employees/scan-history/${employeeId}`);
+
+// My Profile & QR Validation
+export const getMyProfile = () => API.get('/employees/my-profile');
+export const updateMyProfile = (data) => API.put('/employees/my-profile', data);
+export const validateQrScan = (data) => API.post('/employees/qr/validate', data);
 
 // --- Phase 2 APIs ---
 

@@ -1,10 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-<<<<<<< HEAD
-import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Shield, Heart, Pill, ScanLine } from 'lucide-react';
-=======
-import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Heart, Lock, LogIn, ScanLine, Stethoscope, FileText, Clock, ShieldCheck, Activity, Bot } from 'lucide-react';
->>>>>>> pr-3
+import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Heart, Lock, LogIn, ScanLine, Stethoscope, FileText, Clock, ShieldCheck, Activity, Bot, Pill } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ collapsed, onToggle }) => {
@@ -25,6 +21,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['admin'] },
     { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['admin'] },
     { path: '/prescriptions', icon: Pill, label: 'Prescriptions', roles: null },
+    { path: '/qr-scan', icon: ScanLine, label: 'QR Scanner', roles: null },
     { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['admin'] },
   ];
 
@@ -59,9 +56,17 @@ const Sidebar = ({ collapsed, onToggle }) => {
               <span>{t('guest.signInBtn')}</span>
             </button>
           ) : (
-            <div className="sidebar-user">
+            <div className="sidebar-user" onClick={() => navigate('/profile')} style={{ cursor: 'pointer' }}>
               <div className="user-avatar">{user?.name?.charAt(0)}</div>
-              <div className="user-info"><div className="user-name">{user?.name}</div><div className="user-role">{user?.role?.replace('_', ' ')}</div></div>
+              <div className="user-info">
+                <div className="user-name">
+                  {user?.name}
+                  {user?.profileCompletionPercentage !== undefined && user.profileCompletionPercentage < 100 && (
+                    <span className="profile-badge" title={`${user.profileCompletionPercentage}% Complete`}>!</span>
+                  )}
+                </div>
+                <div className="user-role">{user?.role?.replace('_', ' ')}</div>
+              </div>
             </div>
           )}
         </div>

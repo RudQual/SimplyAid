@@ -9,8 +9,8 @@ const Login = () => {
   const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
-  const [role, setRole] = useState('employee');
+
+  const [role, setRole] = useState('worker');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,7 +38,7 @@ const Login = () => {
     setLoading(true);
     try {
       if (isSignUp) {
-        await signup(name, email, password, employeeId, role);
+        await signup(name, email, password, '', role);
       } else {
         await login(email, password);
       }
@@ -62,8 +62,7 @@ const Login = () => {
     setError('');
     setName('');
     setEmail('');
-    setEmployeeId('');
-    setRole('employee');
+    setRole('worker');
     setPassword('');
     setConfirmPassword('');
   };
@@ -108,22 +107,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Employee ID field — sign-up only */}
-            <div className={`login-field login-field--animated ${isSignUp ? 'login-field--visible' : 'login-field--hidden'}`}>
-              <label>Employee ID (Optional)</label>
-              <div className="login-input-wrap">
-                <User size={18} className="login-input-icon" />
-                <input
-                  type="text"
-                  value={employeeId}
-                  onChange={e => setEmployeeId(e.target.value)}
-                  placeholder="EMP-12345"
-                  tabIndex={isSignUp ? 0 : -1}
-                  id="signup-employee-id"
-                />
-              </div>
-            </div>
-
             {/* User Type — sign-up only */}
             <div className={`login-field login-field--animated ${isSignUp ? 'login-field--visible' : 'login-field--hidden'}`}>
               <label>User Type</label>
@@ -134,10 +117,11 @@ const Login = () => {
                   onChange={e => setRole(e.target.value)}
                   tabIndex={isSignUp ? 0 : -1}
                   id="signup-role"
-                  style={{width:'100%',background:'transparent',border:'none',outline:'none',color:'inherit',fontSize:'inherit',paddingLeft:'0.5rem'}}
                 >
-                  <option value="employee">Employee (Worker)</option>
-                  <option value="admin">Admin (Doctor / Manager)</option>
+                  <option value="worker">Worker</option>
+                  <option value="supervisor">Supervisor</option>
+                  <option value="safety_officer">Safety Officer</option>
+                  <option value="admin">Admin</option>
                 </select>
               </div>
             </div>

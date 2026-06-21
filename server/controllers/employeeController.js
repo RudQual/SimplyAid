@@ -296,25 +296,139 @@ exports.updateEmployeeProfile = async (req, res, next) => {
     }
 
     // Fields employees can update themselves
-    const selfAllowed = ['phone', 'emergencyContact', 'knownAllergies', 'chronicConditions', 'preferredLanguage'];
+    const selfAllowed = [
+      // Personal
+      'name', 'gender', 'dateOfBirth', 'bloodGroup', 'phone', 'emergencyContact',
+      // Employment (normally admin only, but allowing based on requirements, or keeping some restricted)
+      'employeeId', 'department', 'designation', 'factoryLocation', 'shiftTiming', 'dateOfJoining', 'reportingManager',
+      // Medical
+      'knownAllergies', 'chronicConditions', 'currentMedications', 'disabilityInfo', 'additionalMedicalNotes',
+      // Safety
+      'firstAidTrainingStatus', 'lastSafetyTrainingDate', 'ppeAssigned', 'safetyCertifications',
+      // Settings
+      'preferredLanguage'
+    ];
     // Admins can update everything except password and system fields
-    const adminBlocked = ['password', '_id', 'qrCodeId', 'qrCodeData', 'employeeId'];
+    const adminBlocked = ['password', '_id', 'qrCodeId', 'qrCodeData']; // Allow admin to change employeeId if needed
 
-    const updates = {};
     for (const [key, value] of Object.entries(req.body)) {
       if (adminBlocked.includes(key)) continue;
       if (!isAdmin && !selfAllowed.includes(key)) continue;
-      updates[key] = value;
+      
+      // Handle empty strings for ObjectId fields like department
+      if (key === 'department' && value === '') {
+        user[key] = undefined;
+      } else {
+        user[key] = value;
+      }
     }
 
-    const updated = await User.findByIdAndUpdate(req.params.id, updates, {
-      new: true,
-      runValidators: true
-    })
+    await user.save();
+    
+    // Repopulate for response
+    await user.populate('company', 'name code');
+    await user.populate('department', 'name code');
+
+    res.json({ success: true, data: user, message: 'Profile updated' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get current user's profile
+// @route   GET /api/employees/my-profile
+// @access  Protected
+exports.getMyProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .select('+qrCodeData')
       .populate('company', 'name code')
       .populate('department', 'name code');
 
-    res.json({ success: true, data: updated, message: 'Profile updated' });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+
+    // Auto-generate QR if missing
+    if (!user.qrCodeData) {
+      try {
+        const { generateQrCode } = require('../utils/qrService');
+        const qrData = await generateQrCode(user);
+        user.qrCodeId = qrData.qrCodeId;
+        user.qrCodeData = qrData.qrCodeData;
+        user.qrCodeGeneratedAt = qrData.qrCodeGeneratedAt;
+        await user.save();
+      } catch (err) {
+        console.error('Auto-generation of QR failed:', err);
+      }
+    }
+
+    res.json({ success: true, data: user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update current user's profile
+// @route   PUT /api/employees/my-profile
+// @access  Protected
+exports.updateMyProfile = async (req, res, next) => {
+  req.params.id = req.user._id.toString(); // Reuse updateEmployeeProfile logic
+  return exports.updateEmployeeProfile(req, res, next);
+};
+
+// @desc    Validate a scanned QR code payload
+// @route   POST /api/employees/qr/validate
+// @access  Protected
+exports.validateQrScan = async (req, res, next) => {
+  try {
+    const { userId, employeeId, qrCodeId, type } = req.body;
+
+    if (!qrCodeId || type !== 'employee') {
+      return res.status(400).json({ success: false, message: 'Invalid QR format' });
+    }
+
+    const user = await User.findOne({ qrCodeId })
+      .populate('company', 'name code')
+      .populate('department', 'name');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Invalid or expired QR Code' });
+    }
+
+    // Verify IDs match to prevent spoofing
+    if (user._id.toString() !== userId || user.employeeId !== employeeId) {
+      return res.status(400).json({ success: false, message: 'QR Code data mismatch' });
+    }
+
+    // Log the scan event
+    await QrScanLog.create({
+      employee: user._id,
+      company: user.company?._id || user.company,
+      scannedBy: req.user._id,
+      scanTime: new Date(),
+      actionType: 'qr_validation',
+      ipAddress: req.ip || req.connection?.remoteAddress
+    });
+
+    user.lastQrScanAt = new Date();
+    await user.save();
+
+    res.json({ 
+      success: true, 
+      data: {
+        _id: user._id,
+        name: user.name,
+        employeeId: user.employeeId,
+        department: user.department,
+        designation: user.designation,
+        profilePhoto: user.profilePhoto,
+        profileCompleted: user.profileCompleted,
+        profileCompletionPercentage: user.profileCompletionPercentage,
+        bloodGroup: user.bloodGroup
+      },
+      message: 'QR Code Validated' 
+    });
   } catch (error) {
     next(error);
   }

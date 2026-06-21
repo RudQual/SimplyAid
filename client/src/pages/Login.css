@@ -85,7 +85,7 @@
 }
 
 .login-card {
-  background: rgba(17, 24, 39, 0.85);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-light);
   border-radius: 20px;
@@ -236,9 +236,15 @@
   pointer-events: none;
 }
 
-.login-input-wrap input {
+.login-input-wrap input,
+.login-input-wrap select {
   padding-left: 42px;
   padding-right: 42px;
+}
+
+.login-input-wrap input::placeholder {
+  color: #cbd5e1;
+  opacity: 0.8;
 }
 
 /* --- Animated Fields (name, confirm password) --- */
