@@ -142,7 +142,7 @@ const EmployeeIdCard = () => {
           <button className="btn btn-ghost btn-sm" onClick={handlePrint}>
             <Printer size={16} /> {t('employee.printCard')}
           </button>
-          {hasRole('admin') && (
+          {hasRole('doctor', 'manager') && (
             <button className="btn btn-warning btn-sm" onClick={handleRegenerateQr} disabled={regenerating}>
               <RefreshCw size={16} className={regenerating ? 'spinning' : ''} /> {t('employee.regenerateQr')}
             </button>

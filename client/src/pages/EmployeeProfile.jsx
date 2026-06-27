@@ -32,7 +32,7 @@ const EmployeeProfile = () => {
   const [prescriptions, setPrescriptions] = useState([]);
 
   const isSelf = currentUser?._id === id;
-  const isAdmin = hasRole('admin');
+  const isAdmin = hasRole('doctor', 'manager');
 
   useEffect(() => {
     loadProfile();

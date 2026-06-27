@@ -17,7 +17,7 @@ const Prescriptions = () => {
   const [items, setItems] = useState([]);
   const [boxes, setBoxes] = useState([]);
 
-  const isDoctor = hasRole('admin');
+  const isDoctor = hasRole('doctor');
 
   useEffect(() => {
     fetchPrescriptions();

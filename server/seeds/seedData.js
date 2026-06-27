@@ -55,7 +55,7 @@ const seedDB = async () => {
     const adminDept = depts.find(d => d.code === 'ADMIN');
 
     const users = await User.create([
-      { name: 'Admin User', email: 'admin@simplyaid.com', password: 'Admin@123', role: 'admin', company: company._id, department: adminDept._id, employeeId: 'EMP001', phone: '9876543210', designation: 'Factory Manager' },
+      { name: 'Admin User', email: 'admin@simplyaid.com', password: 'Admin@123', role: 'doctor', company: company._id, department: adminDept._id, employeeId: 'EMP001', phone: '9876543210', designation: 'Factory Manager' },
       { name: 'Suresh Patil', email: 'safety@simplyaid.com', password: 'Safety@123', role: 'employee', company: company._id, department: safetyDept._id, employeeId: 'EMP002', phone: '9876543211', firstAidCertified: true, certificationExpiry: new Date('2027-06-15'), designation: 'Safety Officer' },
       { name: 'Meena Sharma', email: 'firstaider@simplyaid.com', password: 'First@123', role: 'employee', company: company._id, department: prodDept._id, employeeId: 'EMP003', phone: '9876543212', firstAidCertified: true, certificationExpiry: new Date('2027-03-20'), designation: 'First Aider' },
       { name: 'Vikram Singh', email: 'depthead@simplyaid.com', password: 'Dept@123', role: 'employee', company: company._id, department: prodDept._id, employeeId: 'EMP004', phone: '9876543213', designation: 'Production Manager' },

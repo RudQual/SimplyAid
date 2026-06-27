@@ -41,7 +41,7 @@ const createAlert = async (opts) => {
 const notifySafetyTeam = async (companyId, alertData) => {
   const users = await User.find({
     company: companyId,
-    role: { $in: ['admin', 'safety_officer'] },
+    role: { $in: ['doctor', 'manager'] },
     isActive: true
   }).select('_id');
 

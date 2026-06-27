@@ -10,6 +10,6 @@ router.use(protect);
 
 router.get('/company', getCompanyCompliance);
 router.get('/departments', getDepartmentCompliance);
-router.post('/check', authorize('admin', 'safety_officer'), runComplianceCheck);
+router.post('/check', authorize('doctor'), runComplianceCheck);
 
 module.exports = router;

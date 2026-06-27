@@ -19,7 +19,7 @@ router.get('/employee/:employeeId', getEmployeeTreatments);
 // CRUD
 router.route('/')
   .get(getTreatments)
-  .post(authorize('admin', 'safety_officer', 'first_aider'), createTreatment);
+  .post(authorize('doctor'), createTreatment);
 
 router.route('/:id')
   .get(getTreatment);

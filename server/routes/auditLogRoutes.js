@@ -7,7 +7,7 @@ router.use(protect);
 // @desc    Get audit logs with filtering & pagination
 // @route   GET /api/audit-logs
 // @access  Admin only
-router.get('/', authorize('admin'), async (req, res, next) => {
+router.get('/', authorize('doctor'), async (req, res, next) => {
   try {
     const companyId = req.user.company._id || req.user.company;
     const { entity, user: userId, startDate, endDate, search, page = 1, limit = 25 } = req.query;

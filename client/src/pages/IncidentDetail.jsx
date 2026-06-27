@@ -41,7 +41,7 @@ const IncidentDetail = () => {
             {inc.isReportable && <span className="badge" style={{background:'rgba(239,68,68,0.15)',color:'var(--danger)'}}>REPORTABLE</span>}
           </h1>
         </div>
-        {hasRole('admin') && !editing && <button className="btn btn-primary" onClick={() => setEditing(true)}>Edit Investigation</button>}
+        {hasRole('doctor', 'manager') && !editing && <button className="btn btn-primary" onClick={() => setEditing(true)}>Edit Investigation</button>}
       </div>
 
       <div className="grid-2">

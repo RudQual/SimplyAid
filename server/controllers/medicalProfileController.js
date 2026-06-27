@@ -16,7 +16,7 @@ exports.getMedicalProfile = async (req, res, next) => {
 
     // Access control: self, or admin/safety/first_aider
     const isSelf = req.user._id.toString() === employeeId;
-    const hasAccess = ['admin', 'safety_officer', 'first_aider'].includes(req.user.role);
+    const hasAccess = ['doctor', 'manager'].includes(req.user.role);
     if (!isSelf && !hasAccess) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this medical profile' });
     }
@@ -58,7 +58,7 @@ exports.updateMedicalProfile = async (req, res, next) => {
     }
 
     const isSelf = req.user._id.toString() === employeeId;
-    const isAdmin = ['admin', 'safety_officer'].includes(req.user.role);
+    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }

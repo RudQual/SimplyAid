@@ -3,7 +3,7 @@ const { createDepartment, getDepartments, getDepartment, updateDepartment, delet
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(getDepartments).post(authorize('admin'), createDepartment);
-router.route('/:id').get(getDepartment).put(authorize('admin'), updateDepartment).delete(authorize('admin'), deleteDepartment);
+router.route('/').get(getDepartments).post(authorize('doctor', 'manager'), createDepartment);
+router.route('/:id').get(getDepartment).put(authorize('doctor', 'manager'), updateDepartment).delete(authorize('doctor', 'manager'), deleteDepartment);
 
 module.exports = router;

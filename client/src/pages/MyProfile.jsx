@@ -97,7 +97,7 @@ const MyProfile = () => {
           relationship: formData.emergencyContactRelation
         };
       } else if (section === 'employment') {
-        if (hasRole('admin')) {
+        if (hasRole('doctor', 'manager')) {
           payload.employeeId = formData.employeeId;
           payload.department = formData.department;
         }
@@ -315,7 +315,7 @@ const MyProfile = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className={`field-group ${isMissing(formData.employeeId) ? 'missing-field' : ''}`}>
                 <label>Employee ID *</label>
-                <input name="employeeId" value={formData.employeeId} onChange={handleChange} readOnly={!editMode.employment || !hasRole('admin')} title={!hasRole('admin') ? 'Only Admin can change ID' : ''} />
+                <input name="employeeId" value={formData.employeeId} onChange={handleChange} readOnly={!editMode.employment || !hasRole('doctor', 'manager')} title={!hasRole('doctor', 'manager') ? 'Only Doctor/Manager can change ID' : ''} />
               </div>
               <div className={`field-group ${isMissing(formData.designation) ? 'missing-field' : ''}`}>
                 <label>Designation *</label>

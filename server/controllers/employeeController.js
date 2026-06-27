@@ -44,7 +44,7 @@ exports.getEmployeeProfile = async (req, res, next) => {
 
     // Employees can only view their own profile
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = ['admin', 'safety_officer', 'department_head'].includes(req.user.role);
+    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this profile' });
     }
@@ -130,7 +130,7 @@ exports.downloadQr = async (req, res, next) => {
     }
 
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = ['admin', 'safety_officer'].includes(req.user.role);
+    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -160,7 +160,7 @@ exports.uploadPhoto = [
       }
 
       const isSelf = req.user._id.toString() === user._id.toString();
-      const isAdmin = req.user.role === 'admin';
+      const isAdmin = ['doctor', 'manager'].includes(req.user.role);
       if (!isSelf && !isAdmin) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
       }
@@ -200,7 +200,7 @@ exports.getEmployeeCard = async (req, res, next) => {
     }
 
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = ['admin', 'safety_officer'].includes(req.user.role);
+    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -263,7 +263,7 @@ exports.getEmployeeScanHistory = async (req, res, next) => {
     }
 
     const isSelf = req.user._id.toString() === employee._id.toString();
-    const isAdmin = ['admin', 'safety_officer'].includes(req.user.role);
+    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -290,7 +290,7 @@ exports.updateEmployeeProfile = async (req, res, next) => {
     }
 
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }

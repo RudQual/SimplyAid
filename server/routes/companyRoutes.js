@@ -3,7 +3,7 @@ const { createCompany, getCompanies, getCompany, updateCompany, deleteCompany } 
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(authorize('admin'), getCompanies).post(authorize('admin'), createCompany);
-router.route('/:id').get(getCompany).put(authorize('admin'), updateCompany).delete(authorize('admin'), deleteCompany);
+router.route('/').get(authorize('doctor', 'manager'), getCompanies).post(authorize('doctor', 'manager'), createCompany);
+router.route('/:id').get(getCompany).put(authorize('doctor', 'manager'), updateCompany).delete(authorize('doctor', 'manager'), deleteCompany);
 
 module.exports = router;

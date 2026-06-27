@@ -28,7 +28,7 @@ const Dashboard = () => {
       ]);
       setStats(statsRes.data.data);
       setRecentIncidents(incidentsRes.data.data);
-      if (hasRole('admin')) {
+      if (hasRole('doctor')) {
         const compRes = await getComplianceStatus();
         setCompliance(compRes.data.data);
       }

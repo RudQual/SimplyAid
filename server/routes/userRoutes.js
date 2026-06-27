@@ -3,10 +3,10 @@ const { getUsers, getUser, updateUser, deleteUser, getExpiringCertifications } =
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.get('/expiring-certifications', authorize('admin'), getExpiringCertifications);
+router.get('/expiring-certifications', authorize('doctor', 'manager'), getExpiringCertifications);
 router.get('/', getUsers);
 router.get('/:id', getUser);
-router.put('/:id', authorize('admin'), updateUser);
-router.delete('/:id', authorize('admin'), deleteUser);
+router.put('/:id', authorize('doctor', 'manager'), updateUser);
+router.delete('/:id', authorize('doctor', 'manager'), deleteUser);
 
 module.exports = router;

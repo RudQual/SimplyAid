@@ -46,7 +46,7 @@ const Employees = () => {
     } catch (e) { toast.error(e.response?.data?.message || 'Failed to add'); }
   };
 
-  const roleColors = { admin: 'purple', employee: 'closed' };
+  const roleColors = { doctor: 'purple', manager: 'blue', user: 'closed' };
   const statusColors = { active: 'green', on_leave: 'amber', suspended: 'red', resigned: 'closed' };
 
   const getStatus = (u) => u.employeeStatus || (u.isActive ? 'active' : 'resigned');
@@ -55,14 +55,14 @@ const Employees = () => {
     <div className="page-content">
       <div className="page-header">
         <div><h1 className="page-title">{t('nav.employees')}</h1><p className="page-subtitle">Manage workforce, certifications & digital ID cards</p></div>
-        {hasRole('admin') && <button className="btn btn-primary" onClick={() => requireAuth(() => setShowAdd(true))}><UserPlus size={18} /> Add Employee</button>}
+        {hasRole('doctor', 'manager') && <button className="btn btn-primary" onClick={() => requireAuth(() => setShowAdd(true))}><UserPlus size={18} /> Add Employee</button>}
       </div>
 
       <div className="card" style={{marginBottom:20,padding:'16px 20px'}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
           <div style={{flex:1,minWidth:200,position:'relative'}}><Search size={16} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)'}} /><input placeholder={t('common.search')} value={search} onChange={e => setSearch(e.target.value)} style={{paddingLeft:36}} /></div>
           <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{width:180}}><option value="">All Departments</option>{depts.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select>
-          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} style={{width:180}}><option value="">All Roles</option><option value="admin">Admin</option><option value="employee">Employee</option></select>
+          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} style={{width:180}}><option value="">All Roles</option><option value="doctor">Doctor</option><option value="manager">Manager</option><option value="user">User</option></select>
         </div>
       </div>
 
@@ -131,7 +131,7 @@ const Employees = () => {
                 <div className="form-group"><label className="form-label">Phone</label><input value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label className="form-label">Role</label><select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}><option value="employee">Employee</option><option value="admin">Admin</option></select></div>
+                <div className="form-group"><label className="form-label">Role</label><select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}><option value="user">User</option><option value="manager">Manager</option><option value="doctor">Doctor</option></select></div>
                 <div className="form-group"><label className="form-label">Department</label><select value={form.department} onChange={e => setForm(f => ({...f, department: e.target.value}))}><option value="">Select</option>{depts.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select></div>
               </div>
               <div className="form-row">

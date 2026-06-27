@@ -10,7 +10,7 @@ router.use(protect);
 
 router.route('/')
   .get(getInspections)
-  .post(authorize('admin', 'safety_officer', 'first_aider'), createInspection);
+  .post(authorize('doctor'), createInspection);
 
 router.route('/:id')
   .get(getInspection);
