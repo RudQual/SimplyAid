@@ -1,32 +1,45 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Heart, Lock, LogIn, ScanLine, Stethoscope, FileText, Clock, ShieldCheck, Activity, Bot, Pill } from 'lucide-react';
+import { LayoutDashboard, AlertTriangle, Package, Users, Building2, FileBarChart, Settings, ChevronLeft, ChevronRight, Heart, Lock, LogIn, ScanLine, Stethoscope, FileText, Clock, ShieldCheck, Activity, Bot, Pill, ClipboardCheck, UserCog } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ collapsed, onToggle }) => {
   const { user, hasRole, isGuest, requireAuth, t } = useAuth();
   const navigate = useNavigate();
 
+  // Role-based menu configuration
+  // null roles = visible to everyone, specific roles = restricted
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: t('nav.dashboard'), roles: null },
     { path: '/incidents', icon: AlertTriangle, label: t('nav.incidents'), roles: null },
-    { path: '/treatments', icon: Stethoscope, label: t('nav.treatments'), roles: ['admin'] },
-    { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['admin'] },
-    { path: '/expiry', icon: Clock, label: t('nav.expiry'), roles: ['admin'] },
-    { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['admin'] },
-    { path: '/scan-history', icon: ScanLine, label: 'Scan History', roles: ['admin'] },
-    { path: '/compliance', icon: ShieldCheck, label: t('nav.compliance'), roles: ['admin'] },
-    { path: '/analytics', icon: Activity, label: t('nav.analytics'), roles: ['admin'] },
-    { path: '/ai-assistant', icon: Bot, label: 'AI Assistant', roles: ['admin'] },
-    { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['admin'] },
-    { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['admin'] },
-    { path: '/prescriptions', icon: Pill, label: 'Prescriptions', roles: null },
+    { path: '/incidents/new', icon: FileText, label: 'Report Incident', roles: ['user', 'manager'] },
     { path: '/qr-scan', icon: ScanLine, label: 'QR Scanner', roles: null },
-    { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['admin'] },
+
+    // Manager-specific
+    { path: '/manager-dashboard', icon: ClipboardCheck, label: 'Confirmations', roles: ['manager'] },
+
+    // Doctor-specific
+    { path: '/doctor-dashboard', icon: Stethoscope, label: 'Doctor Dashboard', roles: ['doctor'] },
+    { path: '/treatments', icon: Stethoscope, label: t('nav.treatments'), roles: ['doctor'] },
+    { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['doctor'] },
+    { path: '/expiry', icon: Clock, label: t('nav.expiry'), roles: ['doctor'] },
+    { path: '/prescriptions', icon: Pill, label: 'Prescriptions', roles: ['doctor'] },
+    { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['doctor', 'manager'] },
+    { path: '/scan-history', icon: ScanLine, label: 'Scan History', roles: ['doctor', 'manager'] },
+    { path: '/compliance', icon: ShieldCheck, label: t('nav.compliance'), roles: ['doctor'] },
+    { path: '/analytics', icon: Activity, label: t('nav.analytics'), roles: ['doctor'] },
+    { path: '/ai-assistant', icon: Bot, label: 'AI Assistant', roles: ['doctor'] },
+    { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['doctor'] },
+    { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['doctor', 'manager'] },
+    { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['doctor'] },
   ];
 
-  // Everyone sees all items
-  const visible = menuItems;
+  // Filter menu items based on user role
+  const visible = menuItems.filter(item => {
+    if (!item.roles) return true; // null roles = visible to all
+    if (!user) return false; // guests can't see role-restricted items
+    return item.roles.includes(user.role);
+  });
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>

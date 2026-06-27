@@ -28,8 +28,8 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'employee', 'worker', 'supervisor', 'safety_officer'],
-    default: 'worker'
+    enum: ['doctor', 'manager', 'user'],
+    default: 'user'
   },
   profileCompleted: {
     type: Boolean,

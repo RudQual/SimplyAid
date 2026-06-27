@@ -11,7 +11,7 @@ exports.createIncident = async (req, res, next) => {
     await incident.save();
 
     // Notify safety officers and admins
-    const notifyRoles = ['admin'];
+    const notifyRoles = ['manager'];
     const usersToNotify = await User.find({ company: req.body.company, role: { $in: notifyRoles }, isActive: true });
     const notifications = usersToNotify.map(u => ({
       recipient: u._id, company: req.body.company, type: 'incident_alert',
@@ -100,5 +100,64 @@ exports.getIncidentStats = async (req, res, next) => {
       { $group: { _id: '$incidentType', count: { $sum: 1 } } }
     ]);
     res.json({ success: true, data: { summary: stats || { total: 0, minor: 0, moderate: 0, serious: 0, fatal: 0, totalDaysLost: 0, reportable: 0, openCases: 0 }, departmentStats: deptStats, monthlyTrend, typeBreakdown } });
+  } catch (error) { next(error); }
+};
+
+exports.managerConfirm = async (req, res, next) => {
+  try {
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
+
+    incident.managerConfirmation = {
+      confirmedBy: req.user._id,
+      notes: req.body.notes || '',
+      confirmedAt: new Date()
+    };
+    incident.forwardedToDoctor = true;
+    incident.status = 'under_investigation';
+    incident.statusHistory.push({
+      status: 'under_investigation',
+      changedBy: req.user._id,
+      notes: `Manager confirmed on-site. Notes: ${req.body.notes || 'None'}`
+    });
+    await incident.save();
+
+    // Notify doctors
+    const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
+    const Notification = require('../models/Notification');
+    const notifications = doctors.map(d => ({
+      recipient: d._id, company: incident.company, type: 'incident_alert',
+      title: `Incident ${incident.incidentId} confirmed by manager`,
+      message: `Manager has confirmed incident on-site. Please review.`,
+      severity: 'warning',
+      relatedModel: 'Incident', relatedId: incident._id
+    }));
+    if (notifications.length) await Notification.insertMany(notifications);
+
+    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code').populate('managerConfirmation.confirmedBy', 'name');
+    res.json({ success: true, data: populated });
+  } catch (error) { next(error); }
+};
+
+exports.doctorReview = async (req, res, next) => {
+  try {
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
+
+    incident.doctorReview = {
+      reviewedBy: req.user._id,
+      notes: req.body.notes || '',
+      reviewedAt: new Date()
+    };
+    incident.status = 'resolved';
+    incident.statusHistory.push({
+      status: 'resolved',
+      changedBy: req.user._id,
+      notes: `Doctor reviewed. Notes: ${req.body.notes || 'None'}`
+    });
+    await incident.save();
+
+    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code').populate('doctorReview.reviewedBy', 'name');
+    res.json({ success: true, data: populated });
   } catch (error) { next(error); }
 };

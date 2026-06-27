@@ -153,6 +153,23 @@ const incidentSchema = new mongoose.Schema({
   },
   closedAt: {
     type: Date
+  },
+  // Manager on-site confirmation
+  managerConfirmation: {
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    notes: { type: String, trim: true },
+    confirmedAt: { type: Date }
+  },
+  // Doctor final review
+  doctorReview: {
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    notes: { type: String, trim: true },
+    reviewedAt: { type: Date }
+  },
+  // Track whether manager has forwarded to doctor
+  forwardedToDoctor: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

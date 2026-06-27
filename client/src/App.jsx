@@ -16,12 +16,13 @@ import Departments from './pages/Departments';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Prescriptions from './pages/Prescriptions';
-import VendingMachine from './pages/VendingMachine';
 import EmployeeProfile from './pages/EmployeeProfile';
 import EmployeeIdCard from './pages/EmployeeIdCard';
 import ScanHistory from './pages/ScanHistory';
 import MyProfile from './pages/MyProfile';
 import QrScan from './pages/QrScan';
+import ManagerDashboard from './pages/ManagerDashboard';
+import DoctorDashboard from './pages/DoctorDashboard';
 
 // Phase 2 Pages
 import Treatments from './pages/Treatments';
@@ -41,8 +42,8 @@ const GuestableRoute = ({ children, roles }) => {
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
   // Guests can see everything — pages handle their own action-gating
   if (!user) return children;
-  // REMOVED: role check so all logged-in users can view pages
-  // if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
+  // Role check: redirect if logged-in user lacks required role
+  if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
   return children;
 };
 
@@ -51,8 +52,8 @@ const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
   if (!user) return <Navigate to="/login" />;
-  // REMOVED: role check so all logged-in users can view pages
-  // if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
+  // Role check: redirect if logged-in user lacks required role
+  if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
   return children;
 };
 
@@ -68,25 +69,37 @@ const AppLayout = () => {
           <Route path="/incidents" element={<GuestableRoute><Incidents /></GuestableRoute>} />
           <Route path="/incidents/new" element={<ProtectedRoute><NewIncident /></ProtectedRoute>} />
           <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
-          <Route path="/inventory" element={<ProtectedRoute roles={['admin']}><Inventory /></ProtectedRoute>} />
-          <Route path="/employees" element={<ProtectedRoute roles={['admin']}><Employees /></ProtectedRoute>} />
-          <Route path="/treatments" element={<ProtectedRoute roles={['admin']}><Treatments /></ProtectedRoute>} />
-          <Route path="/treatments/new" element={<ProtectedRoute roles={['admin']}><NewTreatment /></ProtectedRoute>} />
-          <Route path="/treatments/:id" element={<ProtectedRoute roles={['admin']}><TreatmentDetail /></ProtectedRoute>} />
-          <Route path="/inventory/boxes/scan/:boxId" element={<ProtectedRoute roles={['admin']}><BoxProfile /></ProtectedRoute>} />
-          <Route path="/inventory/boxes/:boxId/inspect" element={<ProtectedRoute roles={['admin']}><InspectionForm /></ProtectedRoute>} />
-          <Route path="/expiry" element={<ProtectedRoute roles={['admin']}><ExpiryDashboard /></ProtectedRoute>} />
-          <Route path="/compliance" element={<ProtectedRoute roles={['admin']}><ComplianceDashboard /></ProtectedRoute>} />
-          <Route path="/analytics" element={<ProtectedRoute roles={['admin']}><SafetyAnalytics /></ProtectedRoute>} />
-          <Route path="/ai-assistant" element={<ProtectedRoute roles={['admin']}><AIAssistant /></ProtectedRoute>} />
+
+          {/* Doctor-only routes */}
+          <Route path="/inventory" element={<ProtectedRoute roles={['doctor']}><Inventory /></ProtectedRoute>} />
+          <Route path="/treatments" element={<ProtectedRoute roles={['doctor']}><Treatments /></ProtectedRoute>} />
+          <Route path="/treatments/new" element={<ProtectedRoute roles={['doctor']}><NewTreatment /></ProtectedRoute>} />
+          <Route path="/treatments/:id" element={<ProtectedRoute roles={['doctor']}><TreatmentDetail /></ProtectedRoute>} />
+          <Route path="/inventory/boxes/scan/:boxId" element={<ProtectedRoute roles={['doctor']}><BoxProfile /></ProtectedRoute>} />
+          <Route path="/inventory/boxes/:boxId/inspect" element={<ProtectedRoute roles={['doctor']}><InspectionForm /></ProtectedRoute>} />
+          <Route path="/expiry" element={<ProtectedRoute roles={['doctor']}><ExpiryDashboard /></ProtectedRoute>} />
+          <Route path="/compliance" element={<ProtectedRoute roles={['doctor']}><ComplianceDashboard /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute roles={['doctor']}><SafetyAnalytics /></ProtectedRoute>} />
+          <Route path="/ai-assistant" element={<ProtectedRoute roles={['doctor']}><AIAssistant /></ProtectedRoute>} />
+          <Route path="/prescriptions" element={<ProtectedRoute roles={['doctor']}><Prescriptions /></ProtectedRoute>} />
+          <Route path="/departments" element={<ProtectedRoute roles={['doctor']}><Departments /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute roles={['doctor']}><Settings /></ProtectedRoute>} />
+
+          {/* Manager-only routes */}
+          <Route path="/manager-dashboard" element={<ProtectedRoute roles={['manager']}><ManagerDashboard /></ProtectedRoute>} />
+
+          {/* Doctor-only dashboard */}
+          <Route path="/doctor-dashboard" element={<ProtectedRoute roles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
+
+          {/* Shared routes (doctor + manager) */}
+          <Route path="/employees" element={<ProtectedRoute roles={['doctor', 'manager']}><Employees /></ProtectedRoute>} />
+          <Route path="/employees/:id" element={<ProtectedRoute roles={['doctor', 'manager']}><EmployeeProfile /></ProtectedRoute>} />
+          <Route path="/employees/:id/card" element={<ProtectedRoute roles={['doctor', 'manager']}><EmployeeIdCard /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute roles={['doctor', 'manager']}><Reports /></ProtectedRoute>} />
+          <Route path="/scan-history" element={<ProtectedRoute roles={['doctor', 'manager']}><ScanHistory /></ProtectedRoute>} />
+
+          {/* All authenticated users */}
           <Route path="/notifications" element={<ProtectedRoute><NotificationCenter /></ProtectedRoute>} />
-          <Route path="/employees/:id" element={<ProtectedRoute><EmployeeProfile /></ProtectedRoute>} />
-          <Route path="/employees/:id/card" element={<ProtectedRoute><EmployeeIdCard /></ProtectedRoute>} />
-          <Route path="/departments" element={<ProtectedRoute roles={['admin']}><Departments /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute roles={['admin']}><Reports /></ProtectedRoute>} />
-          <Route path="/scan-history" element={<ProtectedRoute roles={['admin']}><ScanHistory /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute roles={['admin']}><Settings /></ProtectedRoute>} />
-          <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
           <Route path="/qr-scan" element={<ProtectedRoute><QrScan /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
@@ -103,7 +116,6 @@ const App = () => {
       <AuthProvider>
         <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' } }} />
         <Routes>
-          <Route path="/vending" element={<VendingMachine />} />
           <Route path="/login" element={<Login />} />
           <Route path="/*" element={<AppLayout />} />
         </Routes>

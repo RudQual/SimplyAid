@@ -65,8 +65,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // TEMPORARILY DISABLED: Allow all logged in users to access all UI elements
-  const hasRole = (...roles) => true;
+  // Role-based access control — checks if the logged-in user has one of the specified roles
+  const hasRole = (...roles) => {
+    if (!user) return false;
+    return roles.includes(user.role);
+  };
 
   // Guest mode helpers
   const isGuest = !loading && !user;

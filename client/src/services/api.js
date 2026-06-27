@@ -78,9 +78,9 @@ export const getNotificationStats = () => API.get('/notifications/stats');
 // Prescriptions
 export const consumePrescription = (id, data) => API.put(`/prescriptions/${id}/take`, data);
 
-// Vending Machine
-export const vendingLogin = (data) => API.post('/vending/login', data);
-export const vendingDispense = (data) => API.post('/vending/dispense', data);
+// Incident Workflow (Manager/Doctor)
+export const managerConfirmIncident = (id, data) => API.put(`/incidents/${id}/manager-confirm`, data);
+export const doctorReviewIncident = (id, data) => API.put(`/incidents/${id}/doctor-review`, data);
 
 // Employee ID Card & Profile
 export const getEmployeeProfile = (id) => API.get(`/employees/profile/${id}`);

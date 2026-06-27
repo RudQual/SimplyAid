@@ -10,7 +10,7 @@ const Login = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
-  const [role, setRole] = useState('worker');
+  const [role, setRole] = useState('user');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -62,7 +62,7 @@ const Login = () => {
     setError('');
     setName('');
     setEmail('');
-    setRole('worker');
+    setRole('user');
     setPassword('');
     setConfirmPassword('');
   };
@@ -118,10 +118,9 @@ const Login = () => {
                   tabIndex={isSignUp ? 0 : -1}
                   id="signup-role"
                 >
-                  <option value="worker">Worker</option>
-                  <option value="supervisor">Supervisor</option>
-                  <option value="safety_officer">Safety Officer</option>
-                  <option value="admin">Admin</option>
+                  <option value="user">User (Worker)</option>
+                  <option value="manager">Manager</option>
+                  <option value="doctor">Doctor</option>
                 </select>
               </div>
             </div>
