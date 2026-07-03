@@ -104,9 +104,7 @@ const DoctorDashboard = () => {
         <button className="btn btn-secondary" onClick={() => navigate('/expiry')} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', padding: '14px 16px' }}>
           <Clock size={18} /> Expiry Tracking
         </button>
-        <button className="btn btn-secondary" onClick={() => navigate('/prescriptions')} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', padding: '14px 16px' }}>
-          <FileText size={18} /> Prescriptions
-        </button>
+
         <button className="btn btn-secondary" onClick={() => navigate('/reports')} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', padding: '14px 16px' }}>
           <FileText size={18} /> Reports
         </button>

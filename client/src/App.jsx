@@ -15,7 +15,7 @@ import Employees from './pages/Employees';
 import Departments from './pages/Departments';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
-import Prescriptions from './pages/Prescriptions';
+
 import EmployeeProfile from './pages/EmployeeProfile';
 import EmployeeIdCard from './pages/EmployeeIdCard';
 import ScanHistory from './pages/ScanHistory';
@@ -81,7 +81,7 @@ const AppLayout = () => {
           <Route path="/compliance" element={<ProtectedRoute roles={['doctor']}><ComplianceDashboard /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute roles={['doctor']}><SafetyAnalytics /></ProtectedRoute>} />
           <Route path="/ai-assistant" element={<ProtectedRoute roles={['doctor']}><AIAssistant /></ProtectedRoute>} />
-          <Route path="/prescriptions" element={<ProtectedRoute roles={['doctor']}><Prescriptions /></ProtectedRoute>} />
+
           <Route path="/departments" element={<ProtectedRoute roles={['doctor']}><Departments /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute roles={['doctor']}><Settings /></ProtectedRoute>} />
 

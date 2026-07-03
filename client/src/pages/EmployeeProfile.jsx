@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   getEmployeeProfile, updateEmployeeProfile, downloadQr,
   regenerateQr, uploadProfilePhoto, getEmployeeScanHistory,
-  getMedicalProfile, getEmployeeTreatments, getActivePrescriptions
+  getMedicalProfile, getEmployeeTreatments
 } from '../services/api';
 import {
   ArrowLeft, User, Building2, Shield, Droplets, Phone, Award,

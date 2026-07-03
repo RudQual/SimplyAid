@@ -20,14 +20,7 @@ const inventoryItemSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  isPrescribed: {
-    type: Boolean,
-    default: false
-  },
-  prescribedBy: {
-    type: String,
-    trim: true // e.g., 'Factories Act 1948, Section 45'
-  },
+
   description: {
     type: String,
     trim: true

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
-import { validateQrScan } from '../services/api';
+import { validateQrScan, getBoxes, getInventoryItems, createIncident } from '../services/api';
 import toast from 'react-hot-toast';
-import { ScanLine, CheckCircle, XCircle, User, Briefcase, RefreshCw, ChevronLeft } from 'lucide-react';
+import { ScanLine, CheckCircle, XCircle, User, Briefcase, RefreshCw, ChevronLeft, Plus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './QrScan.css';
 
@@ -13,6 +13,13 @@ const QrScan = () => {
   const [processing, setProcessing] = useState(false);
   const navigate = useNavigate();
   const scannerRef = useRef(null);
+
+  // Medication Report State
+  const [showModal, setShowModal] = useState(false);
+  const [boxes, setBoxes] = useState([]);
+  const [items, setItems] = useState([]);
+  const [reportData, setReportData] = useState({ boxId: '', itemId: '', quantity: 1, reason: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     // Initialize Scanner when component mounts and scanning is true
@@ -38,6 +45,27 @@ const QrScan = () => {
       }
     };
   }, [scanning]);
+
+  useEffect(() => {
+    if (scanResult) {
+      fetchFormData();
+    }
+  }, [scanResult]);
+
+  const fetchFormData = async () => {
+    try {
+      const [boxesRes, itemsRes] = await Promise.all([
+        getBoxes(),
+        getInventoryItems()
+      ]);
+      setBoxes(boxesRes.data.data || []);
+      setItems(itemsRes.data.data || []);
+      if (boxesRes.data.data?.length > 0) setReportData(prev => ({ ...prev, boxId: boxesRes.data.data[0]._id }));
+      if (itemsRes.data.data?.length > 0) setReportData(prev => ({ ...prev, itemId: itemsRes.data.data[0]._id }));
+    } catch (e) {
+      toast.error('Failed to load inventory data');
+    }
+  };
 
   const onScanSuccess = async (decodedText, decodedResult) => {
     // Prevent multiple calls if already processing
@@ -90,6 +118,49 @@ const QrScan = () => {
     setScanResult(null);
     setError(null);
     setScanning(true);
+    setShowModal(false);
+  };
+
+  const handleReportSubmit = async (e) => {
+    e.preventDefault();
+    if (!reportData.boxId || !reportData.itemId) return toast.error('Please select a box and an item');
+    if (reportData.quantity < 1) return toast.error('Quantity must be at least 1');
+    
+    try {
+      setSubmitting(true);
+      const selectedItem = items.find(i => i._id === reportData.itemId);
+      const deptId = scanResult.department?._id || scanResult.department;
+      
+      const payload = {
+        department: deptId,
+        incidentType: 'illness',
+        severity: 'minor',
+        description: `Self-reported medication usage: ${reportData.reason || 'No specific symptoms recorded'}`,
+        location: 'First Aid Station',
+        outcome: 'returned_to_work',
+        firstAidBoxUsed: reportData.boxId,
+        itemsUsed: [{
+          item: reportData.itemId,
+          itemName: selectedItem?.name || 'Unknown Item',
+          quantity: Number(reportData.quantity)
+        }],
+        injuredPerson: {
+          name: scanResult.name,
+          employeeId: scanResult.employeeId,
+          department: deptId,
+          designation: scanResult.designation || 'Employee'
+        }
+      };
+
+      await createIncident(payload);
+      toast.success('Medication report submitted for Manager confirmation');
+      setShowModal(false);
+      resetScanner();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit report');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -166,9 +237,88 @@ const QrScan = () => {
             <button className="btn btn-primary btn-large btn-full" onClick={resetScanner}>
               <RefreshCw size={20} /> Scan Another
             </button>
+
+            {scanResult && (
+              <button className="btn btn-secondary btn-large btn-full" onClick={() => setShowModal(true)} style={{ marginTop: 12 }}>
+                <Plus size={20} /> Report Medication Used
+              </button>
+            )}
           </div>
         )}
       </div>
+
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Report Medication Usage</h2>
+              <button className="btn-icon" onClick={() => setShowModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleReportSubmit} className="modal-form">
+              <div className="form-group">
+                <label>First Aid Box Used</label>
+                <select 
+                  className="form-control" 
+                  value={reportData.boxId} 
+                  onChange={e => setReportData({...reportData, boxId: e.target.value})}
+                  required
+                >
+                  {boxes.map(box => (
+                    <option key={box._id} value={box._id}>{box.boxId} ({box.location})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Medication / Item Taken</label>
+                <select 
+                  className="form-control" 
+                  value={reportData.itemId} 
+                  onChange={e => setReportData({...reportData, itemId: e.target.value})}
+                  required
+                >
+                  {items.map(item => (
+                    <option key={item._id} value={item._id}>{item.name} ({item.category})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Quantity</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  min="1" 
+                  value={reportData.quantity} 
+                  onChange={e => setReportData({...reportData, quantity: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Symptoms or Reason (Optional)</label>
+                <textarea 
+                  className="form-control" 
+                  rows="3" 
+                  value={reportData.reason} 
+                  onChange={e => setReportData({...reportData, reason: e.target.value})}
+                  placeholder="e.g. Headache, minor cut..."
+                ></textarea>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? 'Submitting...' : 'Submit Report'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -23,7 +23,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { path: '/treatments', icon: Stethoscope, label: t('nav.treatments'), roles: ['doctor'] },
     { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['doctor'] },
     { path: '/expiry', icon: Clock, label: t('nav.expiry'), roles: ['doctor'] },
-    { path: '/prescriptions', icon: Pill, label: 'Prescriptions', roles: ['doctor'] },
+
     { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['doctor', 'manager'] },
     { path: '/scan-history', icon: ScanLine, label: 'Scan History', roles: ['doctor', 'manager'] },
     { path: '/compliance', icon: ShieldCheck, label: t('nav.compliance'), roles: ['doctor'] },

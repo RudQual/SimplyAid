@@ -155,6 +155,27 @@ exports.doctorReview = async (req, res, next) => {
       changedBy: req.user._id,
       notes: `Doctor reviewed. Notes: ${req.body.notes || 'None'}`
     });
+    // Deduct from First Aid Box if applicable
+    if (incident.firstAidBoxUsed && incident.itemsUsed && incident.itemsUsed.length > 0) {
+      const FirstAidBox = require('../models/FirstAidBox');
+      const box = await FirstAidBox.findById(incident.firstAidBoxUsed);
+      if (box) {
+        let boxUpdated = false;
+        incident.itemsUsed.forEach(usage => {
+          const itemIndex = box.items.findIndex(i => i.item.toString() === usage.item.toString());
+          if (itemIndex > -1) {
+            box.items[itemIndex].currentQty -= usage.quantity;
+            if (box.items[itemIndex].currentQty < 0) box.items[itemIndex].currentQty = 0;
+            boxUpdated = true;
+          }
+        });
+        if (boxUpdated) {
+          box.computeStatus();
+          await box.save();
+        }
+      }
+    }
+
     await incident.save();
 
     const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code').populate('doctorReview.reviewedBy', 'name');

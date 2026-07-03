@@ -54,7 +54,7 @@ const NotificationCenter = () => {
     return <Info size={18} className="notif-icon info" />;
   };
 
-  const categories = ['inventory', 'expiry', 'compliance', 'incident', 'certification', 'treatment', 'prescription', 'system'];
+  const categories = ['inventory', 'expiry', 'compliance', 'incident', 'certification', 'treatment', 'system'];
 
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
 
