@@ -420,6 +420,7 @@ exports.validateQrScan = async (req, res, next) => {
         _id: user._id,
         name: user.name,
         employeeId: user.employeeId,
+        role: user.role,
         department: user.department,
         designation: user.designation,
         profilePhoto: user.profilePhoto,

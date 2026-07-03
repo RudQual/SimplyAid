@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
-import { validateQrScan, getBoxes, getInventoryItems, createIncident } from '../services/api';
+import { validateQrScan, getMedicationOptions, createIncident } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { ScanLine, CheckCircle, XCircle, User, Briefcase, RefreshCw, ChevronLeft, Plus, X } from 'lucide-react';
+import { ScanLine, CheckCircle, XCircle, User, Briefcase, RefreshCw, ChevronLeft, Plus, X, Pill, MapPin, Package, Hash, FileText, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './QrScan.css';
 
 const QrScan = () => {
+  const { user } = useAuth();
   const [scanResult, setScanResult] = useState(null);
   const [error, setError] = useState(null);
   const [scanning, setScanning] = useState(true);
@@ -20,9 +22,9 @@ const QrScan = () => {
   const [items, setItems] = useState([]);
   const [reportData, setReportData] = useState({ boxId: '', itemId: '', quantity: 1, reason: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
 
   useEffect(() => {
-    // Initialize Scanner when component mounts and scanning is true
     if (scanning && !scannerRef.current) {
       const scanner = new Html5QrcodeScanner(
         "qr-reader",
@@ -31,9 +33,8 @@ const QrScan = () => {
           qrbox: { width: 250, height: 250 },
           supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] 
         },
-        /* verbose= */ false
+        false
       );
-
       scanner.render(onScanSuccess, onScanFailure);
       scannerRef.current = scanner;
     }
@@ -46,41 +47,45 @@ const QrScan = () => {
     };
   }, [scanning]);
 
+  // When scan result arrives, check if it's a self-scan and auto-show medication popup
   useEffect(() => {
-    if (scanResult) {
-      fetchFormData();
+    if (scanResult && user) {
+      const isSelfScan = scanResult._id === user._id || scanResult.employeeId === user.employeeId;
+      if (isSelfScan) {
+        // Self-scan: auto-open the medication popup
+        openMedicationModal();
+      }
     }
   }, [scanResult]);
 
-  const fetchFormData = async () => {
+  const openMedicationModal = async () => {
+    setLoadingOptions(true);
+    setShowModal(true);
     try {
-      const [boxesRes, itemsRes] = await Promise.all([
-        getBoxes(),
-        getInventoryItems()
-      ]);
-      setBoxes(boxesRes.data.data || []);
-      setItems(itemsRes.data.data || []);
-      if (boxesRes.data.data?.length > 0) setReportData(prev => ({ ...prev, boxId: boxesRes.data.data[0]._id }));
-      if (itemsRes.data.data?.length > 0) setReportData(prev => ({ ...prev, itemId: itemsRes.data.data[0]._id }));
+      const res = await getMedicationOptions();
+      const { boxes: boxList, items: itemList } = res.data.data;
+      setBoxes(boxList || []);
+      setItems(itemList || []);
+      if (boxList?.length > 0) setReportData(prev => ({ ...prev, boxId: boxList[0]._id }));
+      if (itemList?.length > 0) setReportData(prev => ({ ...prev, itemId: itemList[0]._id }));
     } catch (e) {
-      toast.error('Failed to load inventory data');
+      toast.error('Failed to load medication options');
+      console.error(e);
+    } finally {
+      setLoadingOptions(false);
     }
   };
 
-  const onScanSuccess = async (decodedText, decodedResult) => {
-    // Prevent multiple calls if already processing
+  const onScanSuccess = async (decodedText) => {
     if (processing) return;
 
     try {
       setProcessing(true);
-      // Pause scanner UI immediately
       if (scannerRef.current) {
         scannerRef.current.pause();
       }
 
-      // Try to parse the QR JSON payload
       const payload = JSON.parse(decodedText);
-      
       const res = await validateQrScan(payload);
       
       setScanResult(res.data.data);
@@ -88,14 +93,12 @@ const QrScan = () => {
       setScanning(false);
       toast.success(res.data.message || 'QR Validated');
       
-      // We can clear the scanner entirely since we found a result
       if (scannerRef.current) {
         await scannerRef.current.clear();
         scannerRef.current = null;
       }
       
     } catch (err) {
-      // JSON parse error or backend validation error
       setError(err.response?.data?.message || 'Invalid QR Code format');
       setScanResult(null);
       setScanning(false);
@@ -110,15 +113,14 @@ const QrScan = () => {
     }
   };
 
-  const onScanFailure = (error) => {
-    // Usually ignoring normal scan failures (e.g. no QR in frame yet)
-  };
+  const onScanFailure = () => {};
 
   const resetScanner = () => {
     setScanResult(null);
     setError(null);
     setScanning(true);
     setShowModal(false);
+    setReportData({ boxId: '', itemId: '', quantity: 1, reason: '' });
   };
 
   const handleReportSubmit = async (e) => {
@@ -129,14 +131,15 @@ const QrScan = () => {
     try {
       setSubmitting(true);
       const selectedItem = items.find(i => i._id === reportData.itemId);
+      const selectedBox = boxes.find(b => b._id === reportData.boxId);
       const deptId = scanResult.department?._id || scanResult.department;
       
       const payload = {
         department: deptId,
         incidentType: 'illness',
         severity: 'minor',
-        description: `Self-reported medication usage: ${reportData.reason || 'No specific symptoms recorded'}`,
-        location: 'First Aid Station',
+        description: `Self-reported medication: ${selectedItem?.name || 'Unknown'} (x${reportData.quantity}) from box ${selectedBox?.boxId || 'Unknown'}. ${reportData.reason ? 'Symptoms: ' + reportData.reason : 'No specific symptoms recorded.'}`,
+        location: selectedBox?.location || 'First Aid Station',
         outcome: 'returned_to_work',
         firstAidBoxUsed: reportData.boxId,
         itemsUsed: [{
@@ -153,7 +156,7 @@ const QrScan = () => {
       };
 
       await createIncident(payload);
-      toast.success('Medication report submitted for Manager confirmation');
+      toast.success('Medication report submitted! Pending manager confirmation.');
       setShowModal(false);
       resetScanner();
     } catch (err) {
@@ -163,12 +166,14 @@ const QrScan = () => {
     }
   };
 
+  const isSelfScan = scanResult && user && (scanResult._id === user._id || scanResult.employeeId === user.employeeId);
+
   return (
     <div className="qr-scan-page">
       <div className="qr-scan-header">
         <button className="btn-icon" onClick={() => navigate(-1)}><ChevronLeft size={24} /></button>
         <h1>QR Identity Scanner</h1>
-        <div style={{ width: 24 }}></div> {/* Spacer for centering */}
+        <div style={{ width: 24 }}></div>
       </div>
 
       <div className="qr-scan-container">
@@ -223,6 +228,12 @@ const QrScan = () => {
                   <span>Profile {scanResult.profileCompletionPercentage}% Complete</span>
                 </div>
 
+                {isSelfScan && (
+                  <div className="self-scan-notice">
+                    <AlertCircle size={16} />
+                    <span>This is your profile. Report any medication you took below.</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="result-card error">
@@ -239,83 +250,140 @@ const QrScan = () => {
             </button>
 
             {scanResult && (
-              <button className="btn btn-secondary btn-large btn-full" onClick={() => setShowModal(true)} style={{ marginTop: 12 }}>
-                <Plus size={20} /> Report Medication Used
+              <button className="btn btn-medication btn-large btn-full" onClick={openMedicationModal} style={{ marginTop: 12 }}>
+                <Pill size={20} /> Report Medication Used
               </button>
             )}
           </div>
         )}
       </div>
 
+      {/* Medication Report Modal */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>Report Medication Usage</h2>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>
+        <div className="med-modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="med-modal" onClick={e => e.stopPropagation()}>
+            <div className="med-modal-header">
+              <div className="med-modal-title-group">
+                <div className="med-modal-icon">
+                  <Pill size={22} />
+                </div>
+                <div>
+                  <h2>Report Medication Usage</h2>
+                  <p className="med-modal-subtitle">Select the medication you took. A manager will confirm this report.</p>
+                </div>
+              </div>
+              <button className="btn-icon med-modal-close" onClick={() => setShowModal(false)}>
                 <X size={20} />
               </button>
             </div>
-            
-            <form onSubmit={handleReportSubmit} className="modal-form">
-              <div className="form-group">
-                <label>First Aid Box Used</label>
-                <select 
-                  className="form-control" 
-                  value={reportData.boxId} 
-                  onChange={e => setReportData({...reportData, boxId: e.target.value})}
-                  required
-                >
-                  {boxes.map(box => (
-                    <option key={box._id} value={box._id}>{box.boxId} ({box.location})</option>
-                  ))}
-                </select>
-              </div>
 
-              <div className="form-group">
-                <label>Medication / Item Taken</label>
-                <select 
-                  className="form-control" 
-                  value={reportData.itemId} 
-                  onChange={e => setReportData({...reportData, itemId: e.target.value})}
-                  required
-                >
-                  {items.map(item => (
-                    <option key={item._id} value={item._id}>{item.name} ({item.category})</option>
-                  ))}
-                </select>
+            {loadingOptions ? (
+              <div className="med-modal-loading">
+                <div className="spinner"></div>
+                <p>Loading medication options...</p>
               </div>
+            ) : (
+              <form onSubmit={handleReportSubmit} className="med-modal-form">
+                {/* Employee Info Summary */}
+                <div className="med-employee-summary">
+                  <User size={16} />
+                  <span><strong>{scanResult?.name}</strong> ({scanResult?.employeeId})</span>
+                </div>
 
-              <div className="form-group">
-                <label>Quantity</label>
-                <input 
-                  type="number" 
-                  className="form-control" 
-                  min="1" 
-                  value={reportData.quantity} 
-                  onChange={e => setReportData({...reportData, quantity: e.target.value})}
-                  required
-                />
-              </div>
+                <div className="med-form-grid">
+                  {/* First Aid Box */}
+                  <div className="med-form-group">
+                    <label>
+                      <Package size={14} />
+                      First Aid Box Used
+                    </label>
+                    <select 
+                      className="med-select" 
+                      value={reportData.boxId} 
+                      onChange={e => setReportData({...reportData, boxId: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select a box...</option>
+                      {boxes.map(box => (
+                        <option key={box._id} value={box._id}>
+                          {box.boxId} — {box.location}{box.floor ? ` (${box.floor})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="form-group">
-                <label>Symptoms or Reason (Optional)</label>
-                <textarea 
-                  className="form-control" 
-                  rows="3" 
-                  value={reportData.reason} 
-                  onChange={e => setReportData({...reportData, reason: e.target.value})}
-                  placeholder="e.g. Headache, minor cut..."
-                ></textarea>
-              </div>
+                  {/* Medication Item */}
+                  <div className="med-form-group">
+                    <label>
+                      <Pill size={14} />
+                      Medication / Item Taken
+                    </label>
+                    <select 
+                      className="med-select" 
+                      value={reportData.itemId} 
+                      onChange={e => setReportData({...reportData, itemId: e.target.value})}
+                      required
+                    >
+                      <option value="" disabled>Select an item...</option>
+                      {items.map(item => (
+                        <option key={item._id} value={item._id}>
+                          {item.name} ({item.category})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-              <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? 'Submitting...' : 'Submit Report'}
-                </button>
-              </div>
-            </form>
+                {/* Quantity */}
+                <div className="med-form-group">
+                  <label>
+                    <Hash size={14} />
+                    Quantity Taken
+                  </label>
+                  <input 
+                    type="number" 
+                    className="med-input" 
+                    min="1" 
+                    max="20"
+                    value={reportData.quantity} 
+                    onChange={e => setReportData({...reportData, quantity: e.target.value})}
+                    required
+                  />
+                </div>
+
+                {/* Reason */}
+                <div className="med-form-group">
+                  <label>
+                    <FileText size={14} />
+                    Symptoms or Reason <span className="optional-label">(Optional)</span>
+                  </label>
+                  <textarea 
+                    className="med-textarea" 
+                    rows="3" 
+                    value={reportData.reason} 
+                    onChange={e => setReportData({...reportData, reason: e.target.value})}
+                    placeholder="e.g. Headache, minor cut, stomach ache..."
+                  ></textarea>
+                </div>
+
+                {/* Info Banner */}
+                <div className="med-info-banner">
+                  <AlertCircle size={15} />
+                  <span>This report will be sent to your <strong>Manager</strong> for on-site confirmation, then to the <strong>Doctor</strong> for review.</span>
+                </div>
+
+                <div className="med-modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? (
+                      <><span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }}></span> Submitting...</>
+                    ) : (
+                      <><Pill size={16} /> Submit Report</>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

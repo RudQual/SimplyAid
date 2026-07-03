@@ -97,6 +97,7 @@ export const getEmployeeScanHistory = (employeeId) => API.get(`/employees/scan-h
 export const getMyProfile = () => API.get('/employees/my-profile');
 export const updateMyProfile = (data) => API.put('/employees/my-profile', data);
 export const validateQrScan = (data) => API.post('/employees/qr/validate', data);
+export const getMedicationOptions = () => API.get('/inventory/medication-options');
 
 // --- Phase 2 APIs ---
 

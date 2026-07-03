@@ -21,7 +21,7 @@ const qrScanLogSchema = new mongoose.Schema({
   },
   actionType: {
     type: String,
-    enum: ['profile_view', 'attendance', 'emergency', 'dispensing', 'access_control'],
+    enum: ['profile_view', 'attendance', 'emergency', 'dispensing', 'access_control', 'qr_validation', 'medication_report'],
     default: 'profile_view'
   },
   deviceId: {

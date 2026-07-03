@@ -91,3 +91,24 @@ exports.createInventoryItem = async (req, res, next) => {
     res.status(201).json({ success: true, data: item });
   } catch (error) { next(error); }
 };
+
+// @desc    Get simplified box + item lists for employee medication self-report
+// @route   GET /api/inventory/medication-options
+// @access  All authenticated users
+exports.getMedicationOptions = async (req, res, next) => {
+  try {
+    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
+
+    const [boxes, items] = await Promise.all([
+      FirstAidBox.find({ company: companyId, isActive: true })
+        .select('boxId location floor department')
+        .populate('department', 'name')
+        .sort('boxId'),
+      InventoryItem.find({ $or: [{ isGlobal: true }, { company: companyId }] })
+        .select('name category unit')
+        .sort('category name')
+    ]);
+
+    res.json({ success: true, data: { boxes, items } });
+  } catch (error) { next(error); }
+};

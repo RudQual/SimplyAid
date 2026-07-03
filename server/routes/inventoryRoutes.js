@@ -1,9 +1,13 @@
 const router = require('express').Router();
-const { createBox, getBoxes, getBox, updateBox, inspectBox, replenishBox, getInventoryItems, createInventoryItem } = require('../controllers/inventoryController');
+const { createBox, getBoxes, getBox, updateBox, inspectBox, replenishBox, getInventoryItems, createInventoryItem, getMedicationOptions } = require('../controllers/inventoryController');
 const { generateBoxQr, scanBoxQr, downloadBoxQr } = require('../controllers/boxQrController');
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
+
+// Public medication options — all authenticated users can access
+router.get('/medication-options', getMedicationOptions);
+
 router.get('/items', getInventoryItems);
 router.post('/items', authorize('doctor'), createInventoryItem);
 
