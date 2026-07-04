@@ -382,34 +382,75 @@ exports.updateMyProfile = async (req, res, next) => {
 // @access  Protected
 exports.validateQrScan = async (req, res, next) => {
   try {
-    const { userId, employeeId, qrCodeId, type } = req.body;
+    const { userId, employeeId, qrCodeId, type, id, empId } = req.body;
 
-    if (!qrCodeId || type !== 'employee') {
-      return res.status(400).json({ success: false, message: 'Invalid QR format' });
+    const targetUserId = userId || id;
+    const targetEmpId = employeeId || empId;
+
+    if (!qrCodeId && !targetUserId && !targetEmpId) {
+      return res.status(400).json({ success: false, message: 'Invalid QR format: no user identification found' });
     }
 
-    const user = await User.findOne({ qrCodeId })
-      .populate('company', 'name code')
-      .populate('department', 'name');
+    let user = null;
+
+    // 1. Try finding by qrCodeId if provided
+    if (qrCodeId) {
+      user = await User.findOne({ qrCodeId })
+        .populate('company', 'name code')
+        .populate('department', 'name');
+    }
+
+    // 2. Fallback: try finding by userId and employeeId
+    if (!user && targetUserId && targetEmpId) {
+      user = await User.findOne({ _id: targetUserId, employeeId: targetEmpId })
+        .populate('company', 'name code')
+        .populate('department', 'name');
+    }
+
+    // 3. Fallback: try finding by employeeId alone
+    if (!user && targetEmpId) {
+      user = await User.findOne({ employeeId: targetEmpId })
+        .populate('company', 'name code')
+        .populate('department', 'name');
+    }
+
+    // 4. Fallback: try finding by userId alone
+    if (!user && targetUserId) {
+      user = await User.findOne({ _id: targetUserId })
+        .populate('company', 'name code')
+        .populate('department', 'name');
+    }
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'Invalid or expired QR Code' });
     }
 
-    // Verify IDs match to prevent spoofing
-    if (user._id.toString() !== userId || user.employeeId !== employeeId) {
-      return res.status(400).json({ success: false, message: 'QR Code data mismatch' });
+    // Auto-heal qrCodeId if missing in database
+    if (!user.qrCodeId && qrCodeId) {
+      user.qrCodeId = qrCodeId;
     }
 
-    // Log the scan event
-    await QrScanLog.create({
-      employee: user._id,
-      company: user.company?._id || user.company,
-      scannedBy: req.user._id,
-      scanTime: new Date(),
-      actionType: 'qr_validation',
-      ipAddress: req.ip || req.connection?.remoteAddress
-    });
+    // Verify IDs match to prevent spoofing (only if provided in payload and different from found user)
+    if (targetUserId && user._id.toString() !== targetUserId.toString()) {
+      return res.status(400).json({ success: false, message: 'QR Code user ID mismatch' });
+    }
+    if (targetEmpId && user.employeeId !== targetEmpId) {
+      return res.status(400).json({ success: false, message: 'QR Code employee ID mismatch' });
+    }
+
+    // Log the scan event safely
+    try {
+      await QrScanLog.create({
+        employee: user._id,
+        company: user.company?._id || user.company,
+        scannedBy: req.user._id,
+        scanTime: new Date(),
+        actionType: 'qr_validation',
+        ipAddress: req.ip || req.connection?.remoteAddress
+      });
+    } catch (logErr) {
+      console.error('Failed to log scan event:', logErr.message);
+    }
 
     user.lastQrScanAt = new Date();
     await user.save();

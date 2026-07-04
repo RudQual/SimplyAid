@@ -10,28 +10,28 @@ const Sidebar = ({ collapsed, onToggle }) => {
   // Role-based menu configuration
   // null roles = visible to everyone, specific roles = restricted
   const menuItems = [
+    // Universal
     { path: '/', icon: LayoutDashboard, label: t('nav.dashboard'), roles: null },
-    { path: '/incidents', icon: AlertTriangle, label: t('nav.incidents'), roles: null },
-    { path: '/incidents/new', icon: FileText, label: 'Report Incident', roles: ['user', 'manager'] },
-    { path: '/qr-scan', icon: ScanLine, label: 'QR Scanner', roles: null },
 
-    // Manager-specific
+    // Manager top priorities
     { path: '/manager-dashboard', icon: ClipboardCheck, label: 'Confirmations', roles: ['manager'] },
+    { path: '/qr-scan', icon: ScanLine, label: 'QR Scanner', roles: null },
+    { path: '/incidents/new', icon: FileText, label: 'Report Incident', roles: ['user', 'manager'] },
+    { path: '/incidents', icon: AlertTriangle, label: t('nav.incidents'), roles: null },
+    { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['manager'] },
+    { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['doctor', 'manager'] },
+    { path: '/expiry', icon: Clock, label: t('nav.expiry'), roles: ['doctor', 'manager'] },
+    { path: '/scan-history', icon: ScanLine, label: 'Scan History', roles: ['manager'] },
+    { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['manager'] },
 
     // Doctor-specific
     { path: '/doctor-dashboard', icon: Stethoscope, label: 'Doctor Dashboard', roles: ['doctor'] },
     { path: '/treatments', icon: Stethoscope, label: t('nav.treatments'), roles: ['doctor'] },
-    { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['doctor'] },
-    { path: '/expiry', icon: Clock, label: t('nav.expiry'), roles: ['doctor'] },
-
-    { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['doctor', 'manager'] },
-    { path: '/scan-history', icon: ScanLine, label: 'Scan History', roles: ['doctor', 'manager'] },
-    { path: '/compliance', icon: ShieldCheck, label: t('nav.compliance'), roles: ['doctor'] },
-    { path: '/analytics', icon: Activity, label: t('nav.analytics'), roles: ['doctor'] },
+    { path: '/compliance', icon: ShieldCheck, label: t('nav.compliance'), roles: ['manager'] },
+    { path: '/analytics', icon: Activity, label: t('nav.analytics'), roles: ['manager'] },
     { path: '/ai-assistant', icon: Bot, label: 'AI Assistant', roles: ['doctor'] },
-    { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['doctor'] },
-    { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['doctor', 'manager'] },
-    { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['doctor'] },
+    { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['manager'] },
+    { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['manager'] },
   ];
 
   // Filter menu items based on user role

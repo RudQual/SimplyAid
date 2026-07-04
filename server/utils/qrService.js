@@ -28,9 +28,9 @@ const generateQrCode = async (user) => {
   const payload = buildQrPayload(tempUser);
 
   const qrCodeData = await QRCode.toDataURL(payload, {
-    errorCorrectionLevel: 'H',
+    errorCorrectionLevel: 'M',
     type: 'image/png',
-    width: 300,
+    width: 400,
     margin: 2,
     color: {
       dark: '#000000',

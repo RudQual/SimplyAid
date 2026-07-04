@@ -91,3 +91,37 @@
   border-color: #93C5FD;
   color: var(--blue-900);
 }
+
+.sidebar-badge {
+  margin-left: auto;
+  background: #EF4444;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-badge.collapsed {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin-left: 0;
+  padding: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  min-width: unset;
+  overflow: hidden;
+  text-indent: -9999px;
+  background: #ef4444;
+  border: 1.5px solid var(--bg-card);
+}
+

@@ -74,12 +74,15 @@ export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`)
 export const markAllRead = () => API.put('/notifications/read-all');
 export const archiveNotification = (id) => API.put(`/notifications/${id}/archive`);
 export const getNotificationStats = () => API.get('/notifications/stats');
+export const deleteNotification = (id) => API.delete(`/notifications/${id}`);
+export const deleteBulkNotifications = (ids) => API.post('/notifications/delete-bulk', { ids });
 
 // Prescriptions
 export const consumePrescription = (id, data) => API.put(`/prescriptions/${id}/take`, data);
 
 // Incident Workflow (Manager/Doctor)
 export const managerConfirmIncident = (id, data) => API.put(`/incidents/${id}/manager-confirm`, data);
+export const managerFillIncident = (id, data) => API.put(`/incidents/${id}/manager-fill`, data);
 export const doctorReviewIncident = (id, data) => API.put(`/incidents/${id}/doctor-review`, data);
 
 // Employee ID Card & Profile

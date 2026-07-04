@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getNotifications, markAllRead, markNotificationRead } from '../../services/api';
@@ -13,6 +13,9 @@ const Navbar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
   const [showLang, setShowLang] = useState(false);
 
+  const notifDropdownRef = useRef(null);
+  const langDropdownRef = useRef(null);
+
   useEffect(() => {
     if (!isGuest) {
       loadNotifications();
@@ -20,6 +23,19 @@ const Navbar = () => {
       return () => clearInterval(interval);
     }
   }, [isGuest]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(e.target)) {
+        setShowNotifs(false);
+      }
+      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target)) {
+        setShowLang(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   const loadNotifications = async () => {
     try {
@@ -30,12 +46,22 @@ const Navbar = () => {
   };
 
   const handleMarkAllRead = async () => {
-    try { await markAllRead(); setUnreadCount(0); setNotifications(n => n.map(x => ({ ...x, isRead: true }))); } catch (e) {}
+    try { await markAllRead(); setUnreadCount(0); setNotifications([]); } catch (e) {}
   };
 
   const handleNotifClick = async (notif) => {
     if (!notif.isRead) {
       try { await markNotificationRead(notif._id); setUnreadCount(c => Math.max(0, c - 1)); } catch (e) {}
+    }
+    setNotifications(prev => prev.filter(n => n._id !== notif._id));
+    setShowNotifs(false);
+    // Navigate to the related resource
+    if (notif.relatedModel === 'Incident' && notif.relatedId) {
+      navigate(`/incidents/${notif.relatedId}`);
+    } else if (notif.relatedModel === 'FirstAidBox' && notif.relatedId) {
+      navigate(`/inventory/boxes/scan/${notif.relatedId}`);
+    } else if (notif.relatedModel === 'User' && notif.relatedId) {
+      navigate(`/employees/${notif.relatedId}`);
     }
   };
 
@@ -53,7 +79,7 @@ const Navbar = () => {
       </div>
       <div className="navbar-right">
         {/* Language Toggle */}
-        <div className="navbar-dropdown">
+        <div className="navbar-dropdown" ref={langDropdownRef}>
           <button className="navbar-icon-btn" onClick={() => { setShowLang(!showLang); setShowNotifs(false); }} title="Language">
             <Globe size={18} /><span className="lang-label">{lang.toUpperCase()}</span>
           </button>
@@ -88,7 +114,7 @@ const Navbar = () => {
             </button>
 
             {/* Notifications */}
-            <div className="navbar-dropdown">
+            <div className="navbar-dropdown" ref={notifDropdownRef}>
               <button className="navbar-icon-btn" onClick={() => { setShowNotifs(!showNotifs); setShowLang(false); }}>
                 <Bell size={18} />
                 {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
@@ -109,6 +135,16 @@ const Navbar = () => {
                         <div className="notif-item-time">{new Date(n.createdAt).toLocaleDateString()}</div>
                       </div>
                     ))}
+                  </div>
+                  <div className="notif-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '10px 14px', textAlign: 'center' }}>
+                    <button 
+                      onClick={() => { navigate('/notifications'); setShowNotifs(false); }} 
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6
+                      }}
+                    >
+                      Review All Notifications
+                    </button>
                   </div>
                 </div>
               )}

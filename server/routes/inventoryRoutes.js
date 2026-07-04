@@ -9,16 +9,16 @@ router.use(protect);
 router.get('/medication-options', getMedicationOptions);
 
 router.get('/items', getInventoryItems);
-router.post('/items', authorize('doctor'), createInventoryItem);
+router.post('/items', authorize('doctor', 'manager'), createInventoryItem);
 
 // Box QR routes (must be before :id routes)
 router.get('/boxes/scan/:boxId', scanBoxQr);
 
-router.route('/boxes').get(getBoxes).post(authorize('doctor'), createBox);
-router.route('/boxes/:id').get(getBox).put(authorize('doctor'), updateBox);
-router.put('/boxes/:id/inspect', authorize('doctor'), inspectBox);
-router.put('/boxes/:id/replenish', authorize('doctor'), replenishBox);
-router.post('/boxes/:id/generate-qr', authorize('doctor'), generateBoxQr);
+router.route('/boxes').get(getBoxes).post(authorize('doctor', 'manager'), createBox);
+router.route('/boxes/:id').get(getBox).put(authorize('doctor', 'manager'), updateBox);
+router.put('/boxes/:id/inspect', authorize('doctor', 'manager'), inspectBox);
+router.put('/boxes/:id/replenish', authorize('doctor', 'manager'), replenishBox);
+router.post('/boxes/:id/generate-qr', authorize('doctor', 'manager'), generateBoxQr);
 router.get('/boxes/:id/download-qr', downloadBoxQr);
 
 module.exports = router;

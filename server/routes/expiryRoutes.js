@@ -10,6 +10,6 @@ router.use(protect);
 
 router.get('/dashboard', getExpiryDashboard);
 router.get('/items', getExpiringItems);
-router.post('/check-alerts', authorize('doctor'), checkAndGenerateExpiryAlerts);
+router.post('/check-alerts', authorize('doctor', 'manager'), checkAndGenerateExpiryAlerts);
 
 module.exports = router;

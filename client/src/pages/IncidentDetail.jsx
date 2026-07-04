@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getIncident, updateIncident } from '../services/api';
-import { ArrowLeft, Clock, MapPin, User, FileText, Save } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, User, FileText, Save, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const IncidentDetail = () => {
@@ -33,6 +33,41 @@ const IncidentDetail = () => {
 
   return (
     <div className="page-content">
+      {inc.pendingManagerAssist && hasRole('manager') && (
+        <div style={{
+          background: 'rgba(249, 115, 22, 0.1)',
+          border: '1.5px solid rgba(249, 115, 22, 0.3)',
+          borderRadius: 12,
+          padding: '16px',
+          marginBottom: 20,
+          color: '#f97316',
+          fontWeight: 600,
+          fontSize: '0.95rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 14,
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertTriangle size={20} style={{ flexShrink: 0 }} />
+            <span>This incident report is to be filled by you because the employee didn't fill it.</span>
+          </div>
+          <button 
+            className="btn" 
+            onClick={() => navigate(`/manager-dashboard?fillIncidentId=${inc._id}`)}
+            style={{
+              background: '#f97316', color: '#fff', border: 'none', 
+              padding: '8px 16px', borderRadius: 8, fontWeight: 700, 
+              fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', 
+              alignItems: 'center', gap: 6
+            }}
+          >
+            Go to Confirmations to Fill
+          </button>
+        </div>
+      )}
+
       <div className="page-header">
         <div>
           <button className="btn btn-ghost btn-sm" onClick={() => navigate('/incidents')} style={{marginBottom:8}}><ArrowLeft size={16} /> Back to Incidents</button>

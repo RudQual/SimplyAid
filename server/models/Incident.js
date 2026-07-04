@@ -170,6 +170,17 @@ const incidentSchema = new mongoose.Schema({
   forwardedToDoctor: {
     type: Boolean,
     default: false
+  },
+  // How the incident was initiated
+  reportMode: {
+    type: String,
+    enum: ['self_reported', 'manager_assisted'],
+    default: 'self_reported'
+  },
+  // True when employee delegated form-filling to the manager
+  pendingManagerAssist: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
