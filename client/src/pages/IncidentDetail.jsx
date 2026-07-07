@@ -17,7 +17,22 @@ const IncidentDetail = () => {
   useEffect(() => { loadIncident(); }, [id]);
 
   const loadIncident = async () => {
-    try { const r = await getIncident(id); setIncident(r.data.data); setEditForm({ rootCause: r.data.data.rootCause || '', correctiveAction: r.data.data.correctiveAction || '', preventiveMeasures: r.data.data.preventiveMeasures || '', status: r.data.data.status }); }
+    try { 
+      const r = await getIncident(id); 
+      setIncident(r.data.data); 
+      setEditForm({ 
+        rootCause: r.data.data.rootCause || '', 
+        correctiveAction: r.data.data.correctiveAction || '', 
+        preventiveMeasures: r.data.data.preventiveMeasures || '', 
+        status: r.data.data.status,
+        severity: r.data.data.severity,
+        description: r.data.data.description,
+        location: r.data.data.location,
+        outcome: r.data.data.outcome,
+        treatmentGiven: r.data.data.treatmentGiven || '',
+        daysLost: r.data.data.daysLost || 0
+      }); 
+    }
     catch (e) { toast.error('Failed to load incident'); }
     finally { setLoading(false); }
   };
@@ -30,6 +45,91 @@ const IncidentDetail = () => {
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
   if (!incident) return <div className="page-content"><p>Incident not found</p></div>;
   const inc = incident;
+
+  if (editing) {
+    return (
+      <div className="page-content">
+        <div className="page-header">
+          <div>
+            <button className="btn btn-ghost btn-sm" onClick={() => setEditing(false)} style={{marginBottom:8}}><ArrowLeft size={16} /> Cancel Editing</button>
+            <h1 className="page-title">Edit Incident Report</h1>
+          </div>
+        </div>
+        <div className="card" style={{display:'flex',flexDirection:'column',gap:20}}>
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Status</label>
+              <select value={editForm.status} onChange={e => setEditForm(f => ({...f, status: e.target.value}))}>
+                <option value="reported">Reported</option>
+                <option value="under_investigation">Under Investigation</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Outcome</label>
+              <select value={editForm.outcome} onChange={e => setEditForm(f => ({...f, outcome: e.target.value}))}>
+                <option value="pending_confirmation">Pending Confirmation</option>
+                <option value="returned_to_work">Returned to Work</option>
+                <option value="sent_home">Sent Home</option>
+                <option value="hospitalized">Hospitalized</option>
+                <option value="referred_to_doctor">Referred to Doctor</option>
+                <option value="under_observation">Under Observation</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Severity</label>
+              <select value={editForm.severity} onChange={e => setEditForm(f => ({...f, severity: e.target.value}))}>
+                <option value="minor">Minor</option>
+                <option value="moderate">Moderate</option>
+                <option value="serious">Serious</option>
+                <option value="fatal">Fatal</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Days Lost</label>
+              <input type="number" value={editForm.daysLost} onChange={e => setEditForm(f => ({...f, daysLost: parseInt(e.target.value) || 0}))} />
+            </div>
+          </div>
+          
+          <div className="form-group">
+            <label className="form-label">Location</label>
+            <input value={editForm.location} onChange={e => setEditForm(f => ({...f, location: e.target.value}))} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Description</label>
+            <textarea rows={3} value={editForm.description} onChange={e => setEditForm(f => ({...f, description: e.target.value}))} />
+          </div>
+          
+          <div className="form-group">
+            <label className="form-label">Treatment Given</label>
+            <textarea rows={2} value={editForm.treatmentGiven} onChange={e => setEditForm(f => ({...f, treatmentGiven: e.target.value}))} />
+          </div>
+
+          <h3 className="card-title" style={{marginTop: 10, borderBottom:'1px solid var(--border-color)', paddingBottom:8}}>Investigation Details</h3>
+          
+          <div className="form-group">
+            <label className="form-label">Root Cause</label>
+            <textarea rows={3} value={editForm.rootCause} onChange={e => setEditForm(f => ({...f, rootCause: e.target.value}))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Corrective Action</label>
+            <textarea rows={3} value={editForm.correctiveAction} onChange={e => setEditForm(f => ({...f, correctiveAction: e.target.value}))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Preventive Measures</label>
+            <textarea rows={3} value={editForm.preventiveMeasures} onChange={e => setEditForm(f => ({...f, preventiveMeasures: e.target.value}))} />
+          </div>
+          
+          <div style={{display:'flex',gap:12,justifyContent:'flex-end'}}>
+            <button className="btn btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
+            <button className="btn btn-success" onClick={handleSave}><Save size={16} /> Save Changes</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-content">
@@ -76,7 +176,7 @@ const IncidentDetail = () => {
             {inc.isReportable && <span className="badge" style={{background:'rgba(239,68,68,0.15)',color:'var(--danger)'}}>REPORTABLE</span>}
           </h1>
         </div>
-        {hasRole('doctor', 'manager') && !editing && <button className="btn btn-primary" onClick={() => setEditing(true)}>Edit Investigation</button>}
+        {hasRole('doctor', 'manager') && <button className="btn btn-primary" onClick={() => setEditing(true)}><FileText size={16} /> Edit Report</button>}
       </div>
 
       <div className="grid-2">
@@ -115,21 +215,11 @@ const IncidentDetail = () => {
         <div style={{display:'flex',flexDirection:'column',gap:20}}>
           <div className="card">
             <h3 className="card-title" style={{marginBottom:16}}>Investigation</h3>
-            {editing ? (
-              <div>
-                <div className="form-group"><label className="form-label">Status</label><select value={editForm.status} onChange={e => setEditForm(f => ({...f, status: e.target.value}))}><option value="reported">Reported</option><option value="under_investigation">Under Investigation</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>
-                <div className="form-group"><label className="form-label">Root Cause</label><textarea rows={3} value={editForm.rootCause} onChange={e => setEditForm(f => ({...f, rootCause: e.target.value}))} /></div>
-                <div className="form-group"><label className="form-label">Corrective Action</label><textarea rows={3} value={editForm.correctiveAction} onChange={e => setEditForm(f => ({...f, correctiveAction: e.target.value}))} /></div>
-                <div className="form-group"><label className="form-label">Preventive Measures</label><textarea rows={3} value={editForm.preventiveMeasures} onChange={e => setEditForm(f => ({...f, preventiveMeasures: e.target.value}))} /></div>
-                <div style={{display:'flex',gap:8}}><button className="btn btn-success" onClick={handleSave}><Save size={16} /> Save</button><button className="btn btn-ghost" onClick={() => setEditing(false)}>Cancel</button></div>
-              </div>
-            ) : (
-              <div style={{fontSize:'0.9rem'}}>
-                <p><strong>Root Cause:</strong> {inc.rootCause || <span style={{color:'var(--text-muted)'}}>Not determined yet</span>}</p>
-                <p style={{marginTop:8}}><strong>Corrective Action:</strong> {inc.correctiveAction || <span style={{color:'var(--text-muted)'}}>Pending</span>}</p>
-                <p style={{marginTop:8}}><strong>Preventive Measures:</strong> {inc.preventiveMeasures || <span style={{color:'var(--text-muted)'}}>Pending</span>}</p>
-              </div>
-            )}
+            <div style={{fontSize:'0.9rem'}}>
+              <p><strong>Root Cause:</strong> {inc.rootCause || <span style={{color:'var(--text-muted)'}}>Not determined yet</span>}</p>
+              <p style={{marginTop:8}}><strong>Corrective Action:</strong> {inc.correctiveAction || <span style={{color:'var(--text-muted)'}}>Pending</span>}</p>
+              <p style={{marginTop:8}}><strong>Preventive Measures:</strong> {inc.preventiveMeasures || <span style={{color:'var(--text-muted)'}}>Pending</span>}</p>
+            </div>
           </div>
           <div className="card">
             <h3 className="card-title" style={{marginBottom:16}}>Status Timeline</h3>

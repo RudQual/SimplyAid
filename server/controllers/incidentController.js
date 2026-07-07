@@ -135,7 +135,7 @@ exports.getIncident = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-exports.updateIncident = async (req, res, next) => {
+  exports.updateIncident = async (req, res, next) => {
   try {
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
@@ -143,8 +143,42 @@ exports.updateIncident = async (req, res, next) => {
       incident.statusHistory.push({ status: req.body.status, changedBy: req.user._id, notes: req.body.statusNotes || `Status changed to ${req.body.status}` });
       if (req.body.status === 'closed') { incident.closedBy = req.user._id; incident.closedAt = new Date(); }
     }
-    const fields = ['severity','description','treatmentGiven','treatedBy','outcome','daysLost','dateOfReturn','rootCause','correctiveAction','preventiveMeasures','causeOfInjury','hospitalName','witnesses','status','bodyPartAffected'];
+    
+    let outcomeChanged = false;
+    if (req.body.outcome && req.body.outcome !== incident.outcome) {
+      outcomeChanged = true;
+    }
+
+    const fields = ['severity','description','treatmentGiven','treatedBy','outcome','daysLost','dateOfReturn','rootCause','correctiveAction','preventiveMeasures','causeOfInjury','hospitalName','witnesses','status','bodyPartAffected','location'];
     fields.forEach(f => { if (req.body[f] !== undefined) incident[f] = req.body[f]; });
+
+    if (outcomeChanged) {
+      if (incident.outcome === 'referred_to_doctor') {
+        incident.forwardedToDoctor = true;
+        const User = require('../models/User');
+        const Notification = require('../models/Notification');
+        const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
+        const notifications = doctors.map(d => ({
+          recipient: d._id, company: incident.company, type: 'incident_alert',
+          title: `Incident ${incident.incidentId} requires medical attention`,
+          message: `The incident outcome has been updated. Please review.`,
+          severity: 'warning',
+          relatedModel: 'Incident', relatedId: incident._id
+        }));
+        if (notifications.length) await Notification.insertMany(notifications);
+      } else if (incident.outcome === 'returned_to_work') {
+        incident.forwardedToDoctor = false;
+        if (incident.status !== 'resolved' && incident.status !== 'closed') {
+          incident.status = 'resolved';
+          incident.statusHistory.push({
+            status: 'resolved',
+            changedBy: req.user._id,
+            notes: 'Resolved automatically as outcome was updated to returned to work.'
+          });
+        }
+      }
+    }
+
     await incident.save();
     const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code');
     res.json({ success: true, data: populated });
