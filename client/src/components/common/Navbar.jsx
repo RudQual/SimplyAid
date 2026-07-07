@@ -1,24 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useScanner } from '../../contexts/ScannerContext';
 import { getNotifications, markAllRead, markNotificationRead } from '../../services/api';
-import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye, AlertTriangle } from 'lucide-react';
+import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye, AlertTriangle, Radio, ChevronDown, MapPin, Building2 } from 'lucide-react';
 import './Navbar.css';
 
 const Navbar = () => {
   const { user, isGuest, logout, t, lang, switchLang } = useAuth();
+  const { scanners, selectedScanner, setSelectedScanner, scannersByDepartment, loadScanners } = useScanner();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showLang, setShowLang] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const notifDropdownRef = useRef(null);
   const langDropdownRef = useRef(null);
+  const scannerDropdownRef = useRef(null);
 
   useEffect(() => {
     if (!isGuest) {
       loadNotifications();
+      loadScanners();
       const interval = setInterval(loadNotifications, 30000);
       return () => clearInterval(interval);
     }
@@ -31,6 +36,9 @@ const Navbar = () => {
       }
       if (langDropdownRef.current && !langDropdownRef.current.contains(e.target)) {
         setShowLang(false);
+      }
+      if (scannerDropdownRef.current && !scannerDropdownRef.current.contains(e.target)) {
+        setShowScanner(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -65,6 +73,11 @@ const Navbar = () => {
     }
   };
 
+  const handleScannerSelect = (scanner) => {
+    setSelectedScanner(scanner);
+    setShowScanner(false);
+  };
+
   const getSeverityClass = (s) => s === 'critical' ? 'notif-critical' : s === 'warning' ? 'notif-warning' : 'notif-info';
 
   return (
@@ -80,7 +93,7 @@ const Navbar = () => {
       <div className="navbar-right">
         {/* Language Toggle */}
         <div className="navbar-dropdown" ref={langDropdownRef}>
-          <button className="navbar-icon-btn" onClick={() => { setShowLang(!showLang); setShowNotifs(false); }} title="Language">
+          <button className="navbar-icon-btn" onClick={() => { setShowLang(!showLang); setShowNotifs(false); setShowScanner(false); }} title="Language">
             <Globe size={18} /><span className="lang-label">{lang.toUpperCase()}</span>
           </button>
           {showLang && (
@@ -107,6 +120,63 @@ const Navbar = () => {
           </div>
         ) : (
           <>
+            {/* Scanner Selector — Global */}
+            <div className="navbar-dropdown" ref={scannerDropdownRef}>
+              <button
+                className={`scanner-selector-btn ${selectedScanner ? 'has-scanner' : 'no-scanner'}`}
+                onClick={() => { setShowScanner(!showScanner); setShowNotifs(false); setShowLang(false); }}
+                title={selectedScanner ? `Scanner: ${selectedScanner.name}` : 'Select Scanner'}
+              >
+                <Radio size={16} />
+                <span className="scanner-selector-label">
+                  {selectedScanner ? selectedScanner.name : 'No Scanner'}
+                </span>
+                <ChevronDown size={14} className={`scanner-chevron ${showScanner ? 'open' : ''}`} />
+              </button>
+              {showScanner && (
+                <div className="dropdown-menu scanner-menu">
+                  <div className="scanner-menu-header">
+                    <span className="scanner-menu-title">Select Scanner</span>
+                    {selectedScanner && (
+                      <button className="scanner-clear-btn" onClick={() => { setSelectedScanner(null); setShowScanner(false); }}>
+                        <X size={12} /> Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="scanner-menu-list">
+                    {Object.keys(scannersByDepartment).length === 0 ? (
+                      <div className="scanner-empty">No scanners available</div>
+                    ) : (
+                      Object.entries(scannersByDepartment).map(([deptName, deptScanners]) => (
+                        <div key={deptName} className="scanner-dept-group">
+                          <div className="scanner-dept-label">
+                            <Building2 size={12} />
+                            <span>{deptName}</span>
+                          </div>
+                          {deptScanners.map(scanner => (
+                            <button
+                              key={scanner._id}
+                              className={`scanner-option ${selectedScanner?._id === scanner._id ? 'active' : ''}`}
+                              onClick={() => handleScannerSelect(scanner)}
+                            >
+                              <div className="scanner-option-info">
+                                <div className="scanner-option-name">{scanner.name}</div>
+                                <div className="scanner-option-location">
+                                  <MapPin size={11} /> {scanner.location}
+                                  {scanner.floor && <span> · {scanner.floor}</span>}
+                                </div>
+                              </div>
+                              {selectedScanner?._id === scanner._id && <Check size={14} className="scanner-check" />}
+                            </button>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* SOS Button */}
             <button className="sos-btn" onClick={() => navigate('/incidents/new?type=emergency')}>
               <AlertTriangle size={18} />
@@ -115,7 +185,7 @@ const Navbar = () => {
 
             {/* Notifications */}
             <div className="navbar-dropdown" ref={notifDropdownRef}>
-              <button className="navbar-icon-btn" onClick={() => { setShowNotifs(!showNotifs); setShowLang(false); }}>
+              <button className="navbar-icon-btn" onClick={() => { setShowNotifs(!showNotifs); setShowLang(false); setShowScanner(false); }}>
                 <Bell size={18} />
                 {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
               </button>

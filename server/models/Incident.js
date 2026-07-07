@@ -42,12 +42,29 @@ const incidentSchema = new mongoose.Schema({
     ref: 'Department',
     required: true
   },
+  // Scanner that was used (auto-fills location & department)
+  scanner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Scanner'
+  },
   // What happened
   incidentType: {
     type: String,
     enum: ['injury', 'illness', 'near_miss', 'dangerous_occurrence'],
-    required: true
+    default: 'injury'
   },
+  // Multiple injury types for detailed classification
+  injuryTypes: [{
+    type: {
+      type: String,
+      trim: true
+    },
+    severity: {
+      type: String,
+      enum: ['minor', 'moderate', 'serious', 'fatal'],
+      default: 'minor'
+    }
+  }],
   severity: {
     type: String,
     enum: ['minor', 'moderate', 'serious', 'fatal'],

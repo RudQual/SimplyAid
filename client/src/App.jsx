@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ScannerProvider } from './contexts/ScannerContext';
 import Sidebar from './components/common/Sidebar';
 import Navbar from './components/common/Navbar';
 import AuthRequiredModal from './components/common/AuthRequiredModal';
@@ -114,11 +115,13 @@ const App = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' } }} />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/*" element={<AppLayout />} />
-        </Routes>
+        <ScannerProvider>
+          <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' } }} />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/*" element={<AppLayout />} />
+          </Routes>
+        </ScannerProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { validateQrScan, getMedicationOptions, createIncident } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useScanner } from '../contexts/ScannerContext';
 import toast from 'react-hot-toast';
 import { ScanLine, CheckCircle, XCircle, User, Briefcase, RefreshCw, ChevronLeft, Plus, X, Pill, MapPin, Package, Hash, FileText, AlertCircle, Camera, Upload, Trash2, ClipboardList, UserCheck, ArrowRight, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +10,7 @@ import './QrScan.css';
 
 const QrScan = () => {
   const { user } = useAuth();
+  const { selectedScanner } = useScanner();
   const [scanResult, setScanResult] = useState(null);
   const [error, setError] = useState(null);
   const [scanning, setScanning] = useState(true);
@@ -232,9 +234,10 @@ const QrScan = () => {
         incidentType: 'illness',
         severity: 'minor',
         description: 'Employee was unable to file the incident report. Manager has been notified to visit on-site and complete this report.',
-        location: 'Pending manager on-site assessment',
+        location: selectedScanner?.location || 'Pending manager on-site assessment',
         outcome: 'under_observation',
         department: deptId,
+        scanner: selectedScanner?._id || undefined,
         injuredPerson: {
           name: scanResult.name,
           employeeId: scanResult.employeeId,
@@ -281,8 +284,9 @@ const QrScan = () => {
         incidentType: 'illness',
         severity: 'minor',
         description: `Self-reported medication usage: ${itemsSummary} from box ${selectedBox?.boxId || 'Unknown'}. ${reportData.reason ? 'Symptoms: ' + reportData.reason : 'No specific symptoms recorded.'}`,
-        location: selectedBox?.location || 'First Aid Station',
+        location: selectedScanner?.location || selectedBox?.location || 'First Aid Station',
         outcome: 'returned_to_work',
+        scanner: selectedScanner?._id || undefined,
         firstAidBoxUsed: reportData.boxId,
         itemsUsed: itemsUsedPayload,
         injuredPerson: {

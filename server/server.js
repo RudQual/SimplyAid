@@ -49,6 +49,7 @@ app.use('/api/expiry', require('./routes/expiryRoutes'));
 app.use('/api/compliance', require('./routes/complianceRoutes'));
 app.use('/api/inspections', require('./routes/inspectionRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
+app.use('/api/scanners', require('./routes/scannerRoutes'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -58,7 +59,12 @@ app.get('/api/health', (req, res) => {
 // Error handler
 app.use(errorHandler);
 
+// Start expiry scheduler (persistent, global timing)
+const { startExpiryScheduler } = require('./utils/expiryScheduler');
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 SimplyAID Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+  // Start scheduler after server is up and DB is connected
+  startExpiryScheduler();
 });

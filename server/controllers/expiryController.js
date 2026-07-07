@@ -1,6 +1,43 @@
 const FirstAidBox = require('../models/FirstAidBox');
 const { notifySafetyTeam, createAuditLog } = require('../utils/notificationService');
 
+// Helper: extract expiry entries from a box item (stocks-aware)
+function getExpiryEntries(item, box) {
+  const entries = [];
+  const baseEntry = {
+    boxId: box.boxId,
+    boxLocation: box.location,
+    department: box.department?.name || 'Unknown',
+    itemName: item.item?.name || 'Unknown Item',
+    itemCategory: item.item?.category || 'other',
+    supplier: item.supplier
+  };
+
+  if (item.stocks && item.stocks.length > 0) {
+    item.stocks.forEach(stock => {
+      entries.push({
+        ...baseEntry,
+        currentQty: stock.quantity,
+        expiryDate: stock.expiryDate,
+        batchNumber: stock.batchNumber,
+        supplier: stock.supplier || baseEntry.supplier,
+        stockId: stock._id
+      });
+    });
+  } else {
+    // Legacy single-entry item
+    entries.push({
+      ...baseEntry,
+      currentQty: item.currentQty,
+      expiryDate: item.expiryDate,
+      batchNumber: item.batchNumber,
+      stockId: null
+    });
+  }
+
+  return entries;
+}
+
 // @desc    Get expiry dashboard — aggregate expiry data across all boxes
 // @route   GET /api/expiry/dashboard
 // @access  Protected
@@ -28,36 +65,29 @@ exports.getExpiryDashboard = async (req, res, next) => {
 
     boxes.forEach(box => {
       box.items.forEach(item => {
-        totalItems++;
-        const entry = {
-          boxId: box.boxId,
-          boxLocation: box.location,
-          department: box.department?.name || 'Unknown',
-          itemName: item.item?.name || 'Unknown Item',
-          itemCategory: item.item?.category || 'other',
-          currentQty: item.currentQty,
-          expiryDate: item.expiryDate,
-          batchNumber: item.batchNumber,
-          supplier: item.supplier
-        };
+        const entries = getExpiryEntries(item, box);
 
-        if (!item.expiryDate) {
-          stats.healthy.push(entry);
-          return;
-        }
+        entries.forEach(entry => {
+          totalItems++;
 
-        const exp = new Date(item.expiryDate);
-        if (exp < now) {
-          stats.expired.push(entry);
-        } else if (exp <= d7) {
-          stats.critical7.push(entry);
-        } else if (exp <= d30) {
-          stats.critical30.push(entry);
-        } else if (exp <= d90) {
-          stats.warning90.push(entry);
-        } else {
-          stats.healthy.push(entry);
-        }
+          if (!entry.expiryDate) {
+            stats.healthy.push(entry);
+            return;
+          }
+
+          const exp = new Date(entry.expiryDate);
+          if (exp < now) {
+            stats.expired.push(entry);
+          } else if (exp <= d7) {
+            stats.critical7.push(entry);
+          } else if (exp <= d30) {
+            stats.critical30.push(entry);
+          } else if (exp <= d90) {
+            stats.warning90.push(entry);
+          } else {
+            stats.healthy.push(entry);
+          }
+        });
       });
     });
 
@@ -102,28 +132,24 @@ exports.getExpiringItems = async (req, res, next) => {
     const expiringItems = [];
     boxes.forEach(box => {
       box.items.forEach(item => {
-        if (!item.expiryDate) return;
+        const entries = getExpiryEntries(item, box);
 
-        const exp = new Date(item.expiryDate);
-        if (exp > cutoff) return;
-        if (category && item.item?.category !== category) return;
+        entries.forEach(entry => {
+          if (!entry.expiryDate) return;
+          if (category && item.item?.category !== category) return;
 
-        const daysRemaining = Math.ceil((exp - now) / (24 * 60 * 60 * 1000));
+          const exp = new Date(entry.expiryDate);
+          if (exp > cutoff) return;
 
-        expiringItems.push({
-          boxId: box.boxId,
-          boxObjectId: box._id,
-          boxLocation: box.location,
-          department: box.department?.name || 'Unknown',
-          departmentId: box.department?._id,
-          itemName: item.item?.name || 'Unknown',
-          itemCategory: item.item?.category || 'other',
-          currentQty: item.currentQty,
-          expiryDate: item.expiryDate,
-          batchNumber: item.batchNumber,
-          supplier: item.supplier,
-          daysRemaining,
-          status: daysRemaining < 0 ? 'expired' : daysRemaining <= 30 ? 'critical' : 'warning'
+          const daysRemaining = Math.ceil((exp - now) / (24 * 60 * 60 * 1000));
+
+          expiringItems.push({
+            ...entry,
+            boxObjectId: box._id,
+            departmentId: box.department?._id,
+            daysRemaining,
+            status: daysRemaining < 0 ? 'expired' : daysRemaining <= 30 ? 'critical' : 'warning'
+          });
         });
       });
     });
@@ -162,24 +188,28 @@ exports.checkAndGenerateExpiryAlerts = async (req, res, next) => {
 
     boxes.forEach(box => {
       box.items.forEach(item => {
-        if (!item.expiryDate) return;
+        const entries = getExpiryEntries(item, box);
 
-        const exp = new Date(item.expiryDate);
-        const daysRemaining = Math.ceil((exp - now) / (24 * 60 * 60 * 1000));
+        entries.forEach(entry => {
+          if (!entry.expiryDate) return;
 
-        for (const threshold of alertThresholds) {
-          if (daysRemaining <= threshold.days) {
-            alerts.push({
-              type: 'expiry_alert',
-              title: `${item.item?.name || 'Item'} — ${threshold.label}`,
-              message: `${item.item?.name} in box ${box.boxId} (${box.location}) is ${threshold.label}. Batch: ${item.batchNumber || 'N/A'}`,
-              severity: threshold.severity,
-              relatedModel: 'FirstAidBox',
-              relatedId: box._id
-            });
-            break; // Only use the most urgent threshold
+          const exp = new Date(entry.expiryDate);
+          const daysRemaining = Math.ceil((exp - now) / (24 * 60 * 60 * 1000));
+
+          for (const threshold of alertThresholds) {
+            if (daysRemaining <= threshold.days) {
+              alerts.push({
+                type: 'expiry_alert',
+                title: `${entry.itemName} — ${threshold.label}`,
+                message: `${entry.itemName} in box ${box.boxId} (${box.location}) is ${threshold.label}. Batch: ${entry.batchNumber || 'N/A'}, Qty: ${entry.currentQty}`,
+                severity: threshold.severity,
+                relatedModel: 'FirstAidBox',
+                relatedId: box._id
+              });
+              break;
+            }
           }
-        }
+        });
       });
     });
 

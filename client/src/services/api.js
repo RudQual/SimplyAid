@@ -147,4 +147,7 @@ export const getComplianceAnalytics = () => API.get('/analytics/compliance');
 // Audit Logs
 export const getAuditLogs = (params) => API.get('/audit-logs', { params });
 
+// Scanners
+export const getScanners = () => API.get('/scanners');
+
 export default API;

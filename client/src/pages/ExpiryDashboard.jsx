@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getExpiryDashboard, checkExpiryAlerts } from '../services/api';
-import { Clock, AlertTriangle, AlertOctagon, CheckCircle, RefreshCw } from 'lucide-react';
+import { Clock, AlertTriangle, AlertOctagon, CheckCircle, RefreshCw, ChevronDown, ChevronRight, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ExpiryDashboard.css';
 
@@ -9,6 +9,7 @@ const ExpiryDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [expandedItems, setExpandedItems] = useState({});
 
   useEffect(() => { loadData(); }, []);
 
@@ -29,6 +30,10 @@ const ExpiryDashboard = () => {
     finally { setChecking(false); }
   };
 
+  const toggleExpand = (key) => {
+    setExpandedItems(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
   if (!data) return <div className="empty-state"><Clock size={48} /><p>No expiry data available</p></div>;
 
@@ -46,6 +51,23 @@ const ExpiryDashboard = () => {
   };
 
   const displayItems = getItems();
+
+  // Group items by itemName + boxId for stock-level view
+  const groupedItems = {};
+  displayItems.forEach((item, idx) => {
+    const key = `${item.boxId}-${item.itemName}`;
+    if (!groupedItems[key]) {
+      groupedItems[key] = {
+        itemName: item.itemName,
+        boxId: item.boxId,
+        boxLocation: item.boxLocation,
+        department: item.department,
+        stocks: []
+      };
+    }
+    groupedItems[key].stocks.push({ ...item, _idx: idx });
+  });
+  const groupedList = Object.entries(groupedItems);
 
   return (
     <div className="page-content">
@@ -92,34 +114,85 @@ const ExpiryDashboard = () => {
         ))}
       </div>
 
-      {/* Items Table */}
-      {displayItems.length > 0 ? (
+      {/* Items Table — with expandable stock batches */}
+      {groupedList.length > 0 ? (
         <div className="table-container">
           <table className="data-table">
             <thead>
-              <tr><th>Item</th><th>Box</th><th>Location</th><th>Department</th><th>Qty</th><th>Expiry Date</th><th>Batch</th><th>Status</th></tr>
+              <tr><th></th><th>Item</th><th>Box</th><th>Location</th><th>Department</th><th>Stocks</th><th>Nearest Expiry</th><th>Status</th></tr>
             </thead>
             <tbody>
-              {displayItems.map((item, i) => {
-                const exp = item.expiryDate ? new Date(item.expiryDate) : null;
-                const isExpired = exp && exp < new Date();
-                const daysLeft = exp ? Math.ceil((exp - new Date()) / (24 * 60 * 60 * 1000)) : null;
+              {groupedList.map(([key, group]) => {
+                const isExpanded = expandedItems[key];
+                const hasMultiStocks = group.stocks.length > 1;
+                
+                // Find nearest expiry across all stocks
+                const nearestStock = group.stocks.reduce((nearest, s) => {
+                  if (!s.expiryDate) return nearest;
+                  if (!nearest) return s;
+                  return new Date(s.expiryDate) < new Date(nearest.expiryDate) ? s : nearest;
+                }, null);
+
+                const nearestExp = nearestStock?.expiryDate ? new Date(nearestStock.expiryDate) : null;
+                const isExpired = nearestExp && nearestExp < new Date();
+                const daysLeft = nearestExp ? Math.ceil((nearestExp - new Date()) / (24 * 60 * 60 * 1000)) : null;
+                const totalQty = group.stocks.reduce((sum, s) => sum + (s.currentQty || 0), 0);
+
                 return (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.itemName}</td>
-                    <td style={{ color: 'var(--accent)', fontWeight: 600 }}>{item.boxId}</td>
-                    <td>{item.boxLocation}</td>
-                    <td>{item.department}</td>
-                    <td>{item.currentQty}</td>
-                    <td>{exp ? exp.toLocaleDateString() : '—'}</td>
-                    <td>{item.batchNumber || '—'}</td>
-                    <td>
-                      {isExpired ? <span className="badge badge-red">Expired</span> :
-                       daysLeft <= 7 ? <span className="badge badge-red">{daysLeft}d left</span> :
-                       daysLeft <= 30 ? <span className="badge badge-amber">{daysLeft}d left</span> :
-                       <span className="badge badge-blue">{daysLeft}d left</span>}
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={key} onClick={() => hasMultiStocks && toggleExpand(key)} style={{ cursor: hasMultiStocks ? 'pointer' : 'default' }}>
+                      <td style={{ width: 30 }}>
+                        {hasMultiStocks ? (
+                          isExpanded ? <ChevronDown size={14} color="var(--text-muted)" /> : <ChevronRight size={14} color="var(--text-muted)" />
+                        ) : <Package size={14} color="var(--text-muted)" />}
+                      </td>
+                      <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{group.itemName}</td>
+                      <td style={{ color: 'var(--accent)', fontWeight: 600 }}>{group.boxId}</td>
+                      <td>{group.boxLocation}</td>
+                      <td>{group.department}</td>
+                      <td>
+                        <span style={{ fontWeight: 600 }}>{totalQty}</span>
+                        {hasMultiStocks && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 4 }}>
+                            ({group.stocks.length} batches)
+                          </span>
+                        )}
+                      </td>
+                      <td>{nearestExp ? nearestExp.toLocaleDateString() : '—'}</td>
+                      <td>
+                        {isExpired ? <span className="badge badge-red">Expired</span> :
+                         daysLeft <= 7 ? <span className="badge badge-red">{daysLeft}d left</span> :
+                         daysLeft <= 30 ? <span className="badge badge-amber">{daysLeft}d left</span> :
+                         <span className="badge badge-blue">{daysLeft}d left</span>}
+                      </td>
+                    </tr>
+                    {/* Expanded stock rows */}
+                    {isExpanded && group.stocks.map((stock, si) => {
+                      const stockExp = stock.expiryDate ? new Date(stock.expiryDate) : null;
+                      const stockExpired = stockExp && stockExp < new Date();
+                      const stockDays = stockExp ? Math.ceil((stockExp - new Date()) / (24 * 60 * 60 * 1000)) : null;
+                      return (
+                        <tr key={`${key}-stock-${si}`} style={{ background: 'var(--bg-hover)', fontSize: '0.85rem' }}>
+                          <td></td>
+                          <td style={{ paddingLeft: 24, color: 'var(--text-secondary)' }}>
+                            └ Batch: {stock.batchNumber || 'N/A'}
+                          </td>
+                          <td colSpan={2} style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            {stock.supplier ? `Supplier: ${stock.supplier}` : ''}
+                          </td>
+                          <td></td>
+                          <td style={{ fontWeight: 500 }}>{stock.currentQty || 0}</td>
+                          <td>{stockExp ? stockExp.toLocaleDateString() : '—'}</td>
+                          <td>
+                            {stockExpired ? <span className="badge badge-red">Expired</span> :
+                             stockDays <= 7 ? <span className="badge badge-red">{stockDays}d</span> :
+                             stockDays <= 30 ? <span className="badge badge-amber">{stockDays}d</span> :
+                             <span className="badge badge-blue">{stockDays}d</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </>
                 );
               })}
             </tbody>

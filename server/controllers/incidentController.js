@@ -7,6 +7,16 @@ exports.createIncident = async (req, res, next) => {
     req.body.company = req.user.company ? (req.user.company._id || req.user.company) : null;
     req.body.reportedBy = req.user._id;
 
+    // Auto-resolve department and location from scanner if provided
+    if (req.body.scanner) {
+      const Scanner = require('../models/Scanner');
+      const scanner = await Scanner.findById(req.body.scanner).populate('department', 'name');
+      if (scanner) {
+        if (!req.body.department) req.body.department = scanner.department._id || scanner.department;
+        if (!req.body.location) req.body.location = scanner.location;
+      }
+    }
+
     if (!req.body.department && req.user.department) {
       req.body.department = req.user.department;
     }
@@ -27,13 +37,31 @@ exports.createIncident = async (req, res, next) => {
     incident.statusHistory.push({ status: 'reported', changedBy: req.user._id, notes: isManagerAssisted ? 'Employee requested manager assistance to fill report' : 'Incident reported' });
     await incident.save();
 
-    const notifyRoles = ['manager'];
-    const usersToNotify = await User.find({ company: req.body.company, role: { $in: notifyRoles }, isActive: true });
+    // --- Department Tree Notifications ---
+    // 1. Notify all managers of the incident's department
+    const deptManagerFilter = {
+      company: req.body.company,
+      role: 'manager',
+      isActive: true
+    };
+    // Try to find managers specifically for this department, fallback to all managers
+    const deptManagers = await User.find({ ...deptManagerFilter, department: req.body.department });
+    const allManagers = deptManagers.length > 0
+      ? deptManagers
+      : await User.find(deptManagerFilter);
+
+    // 2. Notify workers in the same department
+    const deptWorkers = await User.find({
+      company: req.body.company,
+      department: req.body.department,
+      role: { $in: ['user', 'worker', 'employee'] },
+      isActive: true,
+      _id: { $ne: req.user._id } // Don't notify the reporter
+    });
 
     let notifications;
     if (isManagerAssisted) {
-      // Urgent notification: employee cannot file report themselves
-      notifications = usersToNotify.map(u => ({
+      notifications = allManagers.map(u => ({
         recipient: u._id, company: req.body.company, type: 'report_pending',
         title: `🚨 Action Required: Fill Incident Report for ${incident.injuredPerson?.name || 'an employee'}`,
         titleHi: `🚨 कार्रवाई आवश्यक: कर्मचारी की घटना रिपोर्ट भरें`,
@@ -44,8 +72,8 @@ exports.createIncident = async (req, res, next) => {
         relatedModel: 'Incident', relatedId: incident._id
       }));
     } else {
-      // Standard new-incident notification
-      notifications = usersToNotify.map(u => ({
+      // Manager notifications
+      const managerNotifs = allManagers.map(u => ({
         recipient: u._id, company: req.body.company, type: 'incident_alert',
         title: `New ${incident.severity} incident reported`,
         titleHi: `नई ${incident.severity} घटना रिपोर्ट`,
@@ -53,11 +81,23 @@ exports.createIncident = async (req, res, next) => {
         severity: incident.severity === 'fatal' ? 'critical' : incident.severity === 'serious' ? 'warning' : 'info',
         relatedModel: 'Incident', relatedId: incident._id
       }));
+
+      // Worker notifications (awareness)
+      const workerNotifs = deptWorkers.map(u => ({
+        recipient: u._id, company: req.body.company, type: 'incident_alert',
+        title: `⚠️ Incident reported in your department`,
+        titleHi: `⚠️ आपके विभाग में घटना रिपोर्ट`,
+        message: `${incident.incidentId}: A ${incident.severity} incident has been reported. Stay alert.`,
+        severity: 'info',
+        relatedModel: 'Incident', relatedId: incident._id
+      }));
+
+      notifications = [...managerNotifs, ...workerNotifs];
     }
 
     if (notifications.length) await Notification.insertMany(notifications);
 
-    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name');
+    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name').populate('scanner', 'name location');
     res.status(201).json({ success: true, data: populated });
   } catch (error) { next(error); }
 };

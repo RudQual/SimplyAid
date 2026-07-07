@@ -1,15 +1,39 @@
 const mongoose = require('mongoose');
 
+const stockEntrySchema = new mongoose.Schema({
+  batchNumber: {
+    type: String,
+    trim: true
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  expiryDate: {
+    type: Date
+  },
+  manufacturingDate: {
+    type: Date
+  },
+  supplier: {
+    type: String,
+    trim: true
+  },
+  purchaseDate: {
+    type: Date
+  },
+  addedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
+
 const boxItemSchema = new mongoose.Schema({
   item: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'InventoryItem',
     required: true
-  },
-  currentQty: {
-    type: Number,
-    required: true,
-    default: 0
   },
   requiredQty: {
     type: Number,
@@ -18,6 +42,13 @@ const boxItemSchema = new mongoose.Schema({
   },
   lastRestocked: {
     type: Date
+  },
+  // Multiple stock batches per item
+  stocks: [stockEntrySchema],
+  // Legacy single-entry fields (kept for backward compatibility)
+  currentQty: {
+    type: Number,
+    default: 0
   },
   expiryDate: {
     type: Date
@@ -146,8 +177,13 @@ firstAidBoxSchema.methods.computeStatus = function() {
     return;
   }
   
-  // Check if any items need replenishment
-  const needsReplenishment = this.items.some(item => item.currentQty < item.requiredQty);
+  // Check if any items need replenishment (use stocks sum or legacy currentQty)
+  const needsReplenishment = this.items.some(item => {
+    const totalQty = item.stocks && item.stocks.length > 0
+      ? item.stocks.reduce((sum, s) => sum + (s.quantity || 0), 0)
+      : (item.currentQty || 0);
+    return totalQty < item.requiredQty;
+  });
   if (needsReplenishment) {
     this.status = 'needs_replenishment';
     return;
@@ -156,7 +192,7 @@ firstAidBoxSchema.methods.computeStatus = function() {
   this.status = 'adequate';
 };
 
-// Get expiry status breakdown for all items in this box
+// Get expiry status breakdown for all stock entries across all items in this box
 firstAidBoxSchema.methods.getExpiryStatus = function() {
   const now = new Date();
   const d90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
@@ -165,15 +201,32 @@ firstAidBoxSchema.methods.getExpiryStatus = function() {
   const result = { healthy: [], warning: [], critical: [], expired: [] };
 
   this.items.forEach(item => {
-    if (!item.expiryDate) {
-      result.healthy.push(item);
-      return;
+    // If item has stocks, check each stock entry
+    if (item.stocks && item.stocks.length > 0) {
+      item.stocks.forEach(stock => {
+        const entry = { item, stock };
+        if (!stock.expiryDate) {
+          result.healthy.push(entry);
+          return;
+        }
+        const exp = new Date(stock.expiryDate);
+        if (exp < now) result.expired.push(entry);
+        else if (exp <= d30) result.critical.push(entry);
+        else if (exp <= d90) result.warning.push(entry);
+        else result.healthy.push(entry);
+      });
+    } else {
+      // Legacy: use top-level expiryDate
+      if (!item.expiryDate) {
+        result.healthy.push({ item, stock: null });
+        return;
+      }
+      const exp = new Date(item.expiryDate);
+      if (exp < now) result.expired.push({ item, stock: null });
+      else if (exp <= d30) result.critical.push({ item, stock: null });
+      else if (exp <= d90) result.warning.push({ item, stock: null });
+      else result.healthy.push({ item, stock: null });
     }
-    const exp = new Date(item.expiryDate);
-    if (exp < now) result.expired.push(item);
-    else if (exp <= d30) result.critical.push(item);
-    else if (exp <= d90) result.warning.push(item);
-    else result.healthy.push(item);
   });
 
   return result;
