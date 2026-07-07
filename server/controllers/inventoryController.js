@@ -75,6 +75,45 @@ exports.replenishBox = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+exports.updateItemStocks = async (req, res, next) => {
+  try {
+    const { id, itemId } = req.params;
+    const { stocks } = req.body; // Array of stock batches
+    
+    if (!stocks || !Array.isArray(stocks)) {
+      return res.status(400).json({ success: false, message: 'Invalid stocks data provided' });
+    }
+
+    const box = await FirstAidBox.findById(id);
+    if (!box) return res.status(404).json({ success: false, message: 'First aid box not found' });
+
+    const itemIndex = box.items.findIndex(i => i.item.toString() === itemId);
+    if (itemIndex === -1) return res.status(404).json({ success: false, message: 'Item not found in this box' });
+
+    // Ensure addedAt is set for new stocks
+    const updatedStocks = stocks.map(stock => ({
+      ...stock,
+      addedAt: stock.addedAt || new Date()
+    }));
+
+    box.items[itemIndex].stocks = updatedStocks;
+    
+    // Recalculate total quantity from stocks
+    box.items[itemIndex].currentQty = updatedStocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+    box.items[itemIndex].lastRestocked = new Date();
+    
+    box.computeStatus();
+    await box.save();
+    
+    const updatedBox = await FirstAidBox.findById(id)
+      .populate('department', 'name code')
+      .populate('inCharge', 'name email phone')
+      .populate('items.item', 'name category unit');
+
+    res.json({ success: true, data: updatedBox });
+  } catch (error) { next(error); }
+};
+
 // Inventory Item types
 exports.getInventoryItems = async (req, res, next) => {
   try {

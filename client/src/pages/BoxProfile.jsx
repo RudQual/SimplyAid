@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { scanBoxQr } from '../services/api';
-import { Package, MapPin, AlertTriangle, CheckCircle, Clock, Info, ArrowLeft, User, FileText, Activity } from 'lucide-react';
+import { scanBoxQr, updateBoxItemStocks } from '../services/api';
+import { Package, MapPin, AlertTriangle, CheckCircle, Clock, Info, ArrowLeft, User, FileText, Activity, Edit2, Plus, Trash2, X, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 import './BoxProfile.css';
 
 const BoxProfile = () => {
@@ -11,11 +12,22 @@ const BoxProfile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  // Stocks Modal State
+  const [showStocksModal, setShowStocksModal] = useState(false);
+  const [activeItem, setActiveItem] = useState(null);
+  const [editStocks, setEditStocks] = useState([]);
+  const [savingStocks, setSavingStocks] = useState(false);
+
+  const loadData = () => {
+    setLoading(true);
     scanBoxQr(boxId)
       .then(res => setData(res.data.data))
       .catch(err => setError(err.response?.data?.message || 'Box not found'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, [boxId]);
 
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
@@ -34,6 +46,51 @@ const BoxProfile = () => {
     if (status === 'compliant') return 'green';
     if (status === 'warning') return 'amber';
     return 'red';
+  };
+
+  // ---- Stocks Management Handlers ----
+
+  const openStocksModal = (item) => {
+    setActiveItem(item);
+    // Clone stocks to edit state
+    setEditStocks(item.stocks?.length ? JSON.parse(JSON.stringify(item.stocks)) : []);
+    setShowStocksModal(true);
+  };
+
+  const handleAddStock = () => {
+    setEditStocks([
+      ...editStocks, 
+      { batchNumber: '', quantity: 1, expiryDate: '', supplier: '' }
+    ]);
+  };
+
+  const handleRemoveStock = (index) => {
+    setEditStocks(editStocks.filter((_, i) => i !== index));
+  };
+
+  const handleStockChange = (index, field, value) => {
+    const updated = [...editStocks];
+    updated[index][field] = value;
+    setEditStocks(updated);
+  };
+
+  const handleSaveStocks = async () => {
+    // Validate
+    if (editStocks.some(s => !s.quantity || s.quantity <= 0)) {
+      return toast.error("Quantity must be at least 1 for all batches");
+    }
+
+    setSavingStocks(true);
+    try {
+      await updateBoxItemStocks(box._id, activeItem.item._id, { stocks: editStocks });
+      toast.success("Stocks updated successfully");
+      setShowStocksModal(false);
+      loadData(); // Reload to get fresh quantities and status
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update stocks");
+    } finally {
+      setSavingStocks(false);
+    }
   };
 
   return (
@@ -100,18 +157,27 @@ const BoxProfile = () => {
           <div className="card h-100">
             <h3 className="card-title" style={{ marginBottom: 16 }}><Package size={18} /> Inventory Details</h3>
             {box.items?.length > 0 ? (
-              <div className="table-container" style={{ border: 'none' }}>
+              <div className="table-container" style={{ border: 'none', overflowX: 'auto' }}>
                 <table className="data-table">
-                  <thead><tr><th>Item</th><th>Qty</th><th>Req</th><th>Status</th><th>Expiry</th></tr></thead>
+                  <thead><tr><th>Item</th><th>Qty</th><th>Req</th><th>Status</th><th>Nearest Expiry</th><th>Actions</th></tr></thead>
                   <tbody>
                     {box.items.map((item, i) => {
                       const qtyRatio = item.requiredQty > 0 ? item.currentQty / item.requiredQty : 1;
                       const qtyColor = qtyRatio >= 1 ? 'green' : qtyRatio >= 0.5 ? 'amber' : 'red';
                       
+                      // Find nearest expiry from stocks
+                      const nearestStock = item.stocks?.reduce((nearest, s) => {
+                        if (!s.expiryDate) return nearest;
+                        if (!nearest) return s;
+                        return new Date(s.expiryDate) < new Date(nearest.expiryDate) ? s : nearest;
+                      }, null);
+
+                      const nearestExp = nearestStock?.expiryDate || item.expiryDate; // Fallback to legacy
+                      
                       let expStatus = 'OK';
                       let expColor = 'green';
-                      if (item.expiryDate) {
-                        const daysLeft = Math.ceil((new Date(item.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                      if (nearestExp) {
+                        const daysLeft = Math.ceil((new Date(nearestExp) - new Date()) / (1000 * 60 * 60 * 24));
                         if (daysLeft < 0) { expStatus = 'Expired'; expColor = 'red'; }
                         else if (daysLeft <= 30) { expStatus = `${daysLeft}d left`; expColor = 'red'; }
                         else if (daysLeft <= 90) { expStatus = `${daysLeft}d left`; expColor = 'amber'; }
@@ -123,7 +189,16 @@ const BoxProfile = () => {
                           <td style={{ color: `var(--${qtyColor === 'amber' ? 'orange-500' : qtyColor === 'red' ? 'red-600' : 'green-500'})`, fontWeight: 600 }}>{item.currentQty}</td>
                           <td>{item.requiredQty}</td>
                           <td><span className={`badge badge-${qtyColor}`}>{qtyColor === 'green' ? 'OK' : 'Low'}</span></td>
-                          <td>{item.expiryDate ? <span className={`badge badge-${expColor}`}>{expStatus}</span> : '—'}</td>
+                          <td>{nearestExp ? <span className={`badge badge-${expColor}`}>{expStatus}</span> : '—'}</td>
+                          <td>
+                            <button 
+                              className="btn btn-sm btn-ghost" 
+                              onClick={() => openStocksModal(item)}
+                              title="Manage Stocks"
+                            >
+                              <Edit2 size={16} /> Edit
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -136,6 +211,67 @@ const BoxProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Stocks Modal */}
+      {showStocksModal && activeItem && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 700 }}>
+            <div className="modal-header">
+              <h2>Manage Stocks: {activeItem.item?.name}</h2>
+              <button className="btn-icon" onClick={() => setShowStocksModal(false)}><X size={20} /></button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: 16, padding: '12px', background: 'var(--bg-hover)', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                <strong>Required Quantity:</strong> {activeItem.requiredQty} {activeItem.item?.unit} <br/>
+                <strong>Current Total:</strong> {editStocks.reduce((sum, s) => sum + (Number(s.quantity)||0), 0)} {activeItem.item?.unit}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {editStocks.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>No stock batches currently exist.</p>
+                ) : (
+                  editStocks.map((stock, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', position: 'relative' }}>
+                      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.8rem', marginBottom: 4 }}>Quantity</label>
+                          <input type="number" className="form-control" min="1" value={stock.quantity} onChange={(e) => handleStockChange(i, 'quantity', e.target.value)} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.8rem', marginBottom: 4 }}>Expiry Date</label>
+                          <input type="date" className="form-control" value={stock.expiryDate ? new Date(stock.expiryDate).toISOString().split('T')[0] : ''} onChange={(e) => handleStockChange(i, 'expiryDate', e.target.value)} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.8rem', marginBottom: 4 }}>Batch / Lot No. (Optional)</label>
+                          <input type="text" className="form-control" value={stock.batchNumber || ''} onChange={(e) => handleStockChange(i, 'batchNumber', e.target.value)} placeholder="e.g. BATCH-123" />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.8rem', marginBottom: 4 }}>Supplier (Optional)</label>
+                          <input type="text" className="form-control" value={stock.supplier || ''} onChange={(e) => handleStockChange(i, 'supplier', e.target.value)} placeholder="Supplier name" />
+                        </div>
+                      </div>
+                      <button className="btn-icon" style={{ color: '#EF4444', marginTop: '22px' }} onClick={() => handleRemoveStock(i)}>
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <button className="btn btn-ghost" style={{ marginTop: 16, width: '100%', border: '1px dashed var(--border-color)' }} onClick={handleAddStock}>
+                <Plus size={18} /> Add New Batch
+              </button>
+            </div>
+            
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-color)' }}>
+              <button className="btn btn-secondary" onClick={() => setShowStocksModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveStocks} disabled={savingStocks}>
+                {savingStocks ? 'Saving...' : <><Save size={18} /> Save Stocks</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

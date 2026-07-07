@@ -18,6 +18,7 @@ router.route('/boxes').get(getBoxes).post(authorize('doctor', 'manager'), create
 router.route('/boxes/:id').get(getBox).put(authorize('doctor', 'manager'), updateBox);
 router.put('/boxes/:id/inspect', authorize('doctor', 'manager'), inspectBox);
 router.put('/boxes/:id/replenish', authorize('doctor', 'manager'), replenishBox);
+router.put('/boxes/:id/items/:itemId/stocks', authorize('doctor', 'manager'), require('../controllers/inventoryController').updateItemStocks);
 router.post('/boxes/:id/generate-qr', authorize('doctor', 'manager'), generateBoxQr);
 router.get('/boxes/:id/download-qr', downloadBoxQr);
 

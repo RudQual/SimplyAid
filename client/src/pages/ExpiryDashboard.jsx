@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getExpiryDashboard, checkExpiryAlerts } from '../services/api';
-import { Clock, AlertTriangle, AlertOctagon, CheckCircle, RefreshCw, ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { Clock, AlertTriangle, AlertOctagon, CheckCircle, RefreshCw, ChevronDown, ChevronRight, Package, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ExpiryDashboard.css';
 
 const ExpiryDashboard = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -59,6 +61,7 @@ const ExpiryDashboard = () => {
     if (!groupedItems[key]) {
       groupedItems[key] = {
         itemName: item.itemName,
+        boxObjId: item.boxObjId,
         boxId: item.boxId,
         boxLocation: item.boxLocation,
         department: item.department,
@@ -119,7 +122,7 @@ const ExpiryDashboard = () => {
         <div className="table-container">
           <table className="data-table">
             <thead>
-              <tr><th></th><th>Item</th><th>Box</th><th>Location</th><th>Department</th><th>Stocks</th><th>Nearest Expiry</th><th>Status</th></tr>
+              <tr><th></th><th>Item</th><th>Box</th><th>Location</th><th>Department</th><th>Stocks</th><th>Nearest Expiry</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {groupedList.map(([key, group]) => {
@@ -165,6 +168,15 @@ const ExpiryDashboard = () => {
                          daysLeft <= 30 ? <span className="badge badge-amber">{daysLeft}d left</span> :
                          <span className="badge badge-blue">{daysLeft}d left</span>}
                       </td>
+                      <td>
+                        <button 
+                          className="btn btn-sm btn-ghost"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/inventory/boxes/scan/${group.boxId}`); }}
+                          title="Edit Box Stocks"
+                        >
+                          <Edit2 size={16} /> Manage
+                        </button>
+                      </td>
                     </tr>
                     {/* Expanded stock rows */}
                     {isExpanded && group.stocks.map((stock, si) => {
@@ -183,12 +195,13 @@ const ExpiryDashboard = () => {
                           <td></td>
                           <td style={{ fontWeight: 500 }}>{stock.currentQty || 0}</td>
                           <td>{stockExp ? stockExp.toLocaleDateString() : '—'}</td>
-                          <td>
+                           <td>
                             {stockExpired ? <span className="badge badge-red">Expired</span> :
                              stockDays <= 7 ? <span className="badge badge-red">{stockDays}d</span> :
                              stockDays <= 30 ? <span className="badge badge-amber">{stockDays}d</span> :
                              <span className="badge badge-blue">{stockDays}d</span>}
                           </td>
+                          <td></td>
                         </tr>
                       );
                     })}

@@ -5,6 +5,7 @@ const { notifySafetyTeam, createAuditLog } = require('../utils/notificationServi
 function getExpiryEntries(item, box) {
   const entries = [];
   const baseEntry = {
+    boxObjId: box._id,
     boxId: box.boxId,
     boxLocation: box.location,
     department: box.department?.name || 'Unknown',

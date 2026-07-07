@@ -27,15 +27,7 @@ const QrScan = () => {
   const [showChoiceModal, setShowChoiceModal] = useState(false);
   const [delegating, setDelegating] = useState(false);
 
-  // Medication Report State
-  const [showModal, setShowModal] = useState(false);
-  const [boxes, setBoxes] = useState([]);
-  const [items, setItems] = useState([]);
-  const [reportData, setReportData] = useState({ boxId: '', reason: '' });
-  const [selectedItems, setSelectedItems] = useState([{ itemId: '', quantity: 1 }]);
-  const [submitting, setSubmitting] = useState(false);
-  const [loadingOptions, setLoadingOptions] = useState(false);
-
+  // Medication Report State (Removed)
   const processingRef = useRef(false);
 
   useEffect(() => {
@@ -137,23 +129,7 @@ const QrScan = () => {
     }
   }, [scanResult]);
 
-  const openMedicationModal = async () => {
-    setLoadingOptions(true);
-    setShowModal(true);
-    try {
-      const res = await getMedicationOptions();
-      const { boxes: boxList, items: itemList } = res.data.data;
-      setBoxes(boxList || []);
-      setItems(itemList || []);
-      if (boxList?.length > 0) setReportData(prev => ({ ...prev, boxId: boxList[0]._id }));
-      if (itemList?.length > 0) setSelectedItems([{ itemId: itemList[0]._id, quantity: 1 }]);
-    } catch (e) {
-      toast.error('Failed to load medication options');
-      console.error(e);
-    } finally {
-      setLoadingOptions(false);
-    }
-  };
+
 
   const onScanSuccess = async (decodedText) => {
     if (processingRef.current) return;
@@ -194,34 +170,18 @@ const QrScan = () => {
 
   const onScanFailure = () => {};
 
-  const handleAddItemRow = () => {
-    setSelectedItems([...selectedItems, { itemId: items[0]?._id || '', quantity: 1 }]);
-  };
 
-  const handleRemoveItemRow = (index) => {
-    if (selectedItems.length <= 1) return;
-    setSelectedItems(selectedItems.filter((_, i) => i !== index));
-  };
-
-  const handleItemChange = (index, field, value) => {
-    const updated = [...selectedItems];
-    updated[index][field] = value;
-    setSelectedItems(updated);
-  };
 
   const resetScanner = () => {
     setScanResult(null);
     setError(null);
     setScanning(true);
-    setShowModal(false);
     setShowChoiceModal(false);
-    setReportData({ boxId: '', reason: '' });
-    setSelectedItems([{ itemId: '', quantity: 1 }]);
   };
 
-  const handleSelfReport = async () => {
+  const handleSelfReport = () => {
     setShowChoiceModal(false);
-    await openMedicationModal();
+    navigate('/incidents/new', { state: { scannedUser: scanResult } });
   };
 
   const handleDelegateToManager = async () => {
@@ -256,57 +216,7 @@ const QrScan = () => {
     }
   };
 
-  const handleReportSubmit = async (e) => {
-    e.preventDefault();
-    if (!reportData.boxId) return toast.error('Please select a First Aid Box');
-    
-    const validItems = selectedItems.filter(i => i.itemId && Number(i.quantity) > 0);
-    if (validItems.length === 0) return toast.error('Please select at least one medication with quantity >= 1');
-    
-    try {
-      setSubmitting(true);
-      const selectedBox = boxes.find(b => b._id === reportData.boxId);
-      const deptId = scanResult.department?._id || scanResult.department || user?.department?._id || user?.department || undefined;
-      
-      const itemsUsedPayload = validItems.map(i => {
-        const found = items.find(item => item._id === i.itemId);
-        return {
-          item: i.itemId,
-          itemName: found?.name || 'Unknown Item',
-          quantity: Number(i.quantity)
-        };
-      });
 
-      const itemsSummary = itemsUsedPayload.map(i => `${i.itemName} (x${i.quantity})`).join(', ');
-
-      const payload = {
-        department: deptId,
-        incidentType: 'illness',
-        severity: 'minor',
-        description: `Self-reported medication usage: ${itemsSummary} from box ${selectedBox?.boxId || 'Unknown'}. ${reportData.reason ? 'Symptoms: ' + reportData.reason : 'No specific symptoms recorded.'}`,
-        location: selectedScanner?.location || selectedBox?.location || 'First Aid Station',
-        outcome: 'returned_to_work',
-        scanner: selectedScanner?._id || undefined,
-        firstAidBoxUsed: reportData.boxId,
-        itemsUsed: itemsUsedPayload,
-        injuredPerson: {
-          name: scanResult.name,
-          employeeId: scanResult.employeeId,
-          department: deptId,
-          designation: scanResult.designation || 'Employee'
-        }
-      };
-
-      await createIncident(payload);
-      toast.success('Medication report submitted! Pending manager confirmation.');
-      setShowModal(false);
-      resetScanner();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to submit report');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const isSelfScan = scanResult && user && (scanResult._id === user._id || scanResult.employeeId === user.employeeId);
   const scannedName = scanResult?.name || 'Employee';
@@ -467,171 +377,15 @@ const QrScan = () => {
             </button>
 
             {scanResult && !isSelfScan && (
-              <button className="btn btn-medication btn-large btn-full" onClick={openMedicationModal} style={{ marginTop: 12 }}>
-                <Pill size={20} /> Report Medication Used
+              <button className="btn btn-primary btn-large btn-full" onClick={() => navigate('/incidents/new', { state: { scannedUser: scanResult } })} style={{ marginTop: 12 }}>
+                <FileText size={20} /> File Full Incident Report
               </button>
             )}
           </div>
         )}
       </div>
 
-      {/* Medication Report Modal */}
-      {showModal && (
-        <div className="med-modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="med-modal" onClick={e => e.stopPropagation()}>
-            <div className="med-modal-header">
-              <div className="med-modal-title-group">
-                <div className="med-modal-icon">
-                  <Pill size={22} />
-                </div>
-                <div>
-                  <h2>Report Medication Usage</h2>
-                  <p className="med-modal-subtitle">Select the medication you took. A manager will confirm this report.</p>
-                </div>
-              </div>
-              <button className="btn-icon med-modal-close" onClick={() => setShowModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
 
-            {loadingOptions ? (
-              <div className="med-modal-loading">
-                <div className="spinner"></div>
-                <p>Loading medication options...</p>
-              </div>
-            ) : (
-              <form onSubmit={handleReportSubmit} className="med-modal-form">
-                {/* Employee Info Summary */}
-                <div className="med-employee-summary">
-                  <User size={16} />
-                  <span><strong>{scanResult?.name}</strong> ({scanResult?.employeeId})</span>
-                </div>
-
-                <div className="med-form-grid">
-                  {/* First Aid Box */}
-                  <div className="med-form-group">
-                    <label>
-                      <Package size={14} />
-                      First Aid Box Used
-                    </label>
-                    <select 
-                      className="med-select" 
-                      value={reportData.boxId} 
-                      onChange={e => setReportData({...reportData, boxId: e.target.value})}
-                      required
-                    >
-                      <option value="" disabled>Select a box...</option>
-                      {boxes.map(box => (
-                        <option key={box._id} value={box._id}>
-                          {box.boxId} — {box.location}{box.floor ? ` (${box.floor})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Medications / Items Taken List */}
-                  <div className="med-form-group" style={{ marginTop: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <label style={{ margin: 0 }}>
-                        <Pill size={14} />
-                        Medications / Items Taken
-                      </label>
-                      <button 
-                        type="button" 
-                        onClick={handleAddItemRow}
-                        style={{
-                          background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.2)',
-                          padding: '4px 10px', borderRadius: 16, fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer'
-                        }}
-                      >
-                        <Plus size={13} /> Add Item
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {selectedItems.map((row, index) => (
-                        <div key={index} style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-app)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)' }}>
-                          <div style={{ flex: 1 }}>
-                            <select 
-                              className="med-select" 
-                              value={row.itemId} 
-                              onChange={e => handleItemChange(index, 'itemId', e.target.value)}
-                              required
-                              style={{ margin: 0, width: '100%' }}
-                            >
-                              <option value="" disabled>Select an item...</option>
-                              {items.map(item => (
-                                <option key={item._id} value={item._id}>
-                                  {item.name} ({item.category})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div style={{ width: 85 }}>
-                            <input 
-                              type="number" 
-                              className="med-input" 
-                              min="1" 
-                              max="50"
-                              value={row.quantity} 
-                              onChange={e => handleItemChange(index, 'quantity', e.target.value)}
-                              required
-                              placeholder="Qty"
-                              style={{ margin: 0, width: '100%', textAlign: 'center' }}
-                            />
-                          </div>
-                          {selectedItems.length > 1 && (
-                            <button 
-                              type="button" 
-                              onClick={() => handleRemoveItemRow(index)}
-                              style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                              title="Remove item"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reason */}
-                <div className="med-form-group">
-                  <label>
-                    <FileText size={14} />
-                    Symptoms or Reason <span className="optional-label">(Optional)</span>
-                  </label>
-                  <textarea 
-                    className="med-textarea" 
-                    rows="3" 
-                    value={reportData.reason} 
-                    onChange={e => setReportData({...reportData, reason: e.target.value})}
-                    placeholder="e.g. Headache, minor cut, stomach ache..."
-                  ></textarea>
-                </div>
-
-                {/* Info Banner */}
-                <div className="med-info-banner">
-                  <AlertCircle size={15} />
-                  <span>This report will be sent to your <strong>Manager</strong> for on-site confirmation, then to the <strong>Doctor</strong> for review.</span>
-                </div>
-
-                <div className="med-modal-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={submitting}>
-                    {submitting ? (
-                      <><span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }}></span> Submitting...</>
-                    ) : (
-                      <><Pill size={16} /> Submit Report</>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Post-Scan Action Choice Modal */}
       {showChoiceModal && scanResult && (

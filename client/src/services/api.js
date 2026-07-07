@@ -58,6 +58,7 @@ export const createBox = (data) => API.post('/inventory/boxes', data);
 export const updateBox = (id, data) => API.put(`/inventory/boxes/${id}`, data);
 export const inspectBox = (id, data) => API.put(`/inventory/boxes/${id}/inspect`, data);
 export const replenishBox = (id, data) => API.put(`/inventory/boxes/${id}/replenish`, data);
+export const updateBoxItemStocks = (boxId, itemId, data) => API.put(`/inventory/boxes/${boxId}/items/${itemId}/stocks`, data);
 export const getInventoryItems = () => API.get('/inventory/items');
 export const generateBoxQr = (id) => API.post(`/inventory/boxes/${id}/generate-qr`);
 export const scanBoxQr = (boxId) => API.get(`/inventory/boxes/scan/${boxId}`);

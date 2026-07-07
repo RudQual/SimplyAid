@@ -104,7 +104,7 @@ const incidentSchema = new mongoose.Schema({
   // Outcome
   outcome: {
     type: String,
-    enum: ['returned_to_work', 'sent_home', 'hospitalized', 'referred_to_doctor', 'fatal', 'under_observation'],
+    enum: ['returned_to_work', 'sent_home', 'hospitalized', 'referred_to_doctor', 'fatal', 'under_observation', 'pending_confirmation'],
     required: true
   },
   hospitalName: {

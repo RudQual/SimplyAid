@@ -105,12 +105,13 @@ exports.createIncident = async (req, res, next) => {
 exports.getIncidents = async (req, res, next) => {
   try {
     const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
-    const { department, severity, status, incidentType, startDate, endDate, search, page = 1, limit = 20 } = req.query;
+    const { department, severity, status, incidentType, outcome, startDate, endDate, search, page = 1, limit = 20 } = req.query;
     const filter = { company: companyId };
 
     if (department) filter.department = department;
     if (severity) filter.severity = severity;
     if (status) filter.status = status;
+    if (outcome) filter.outcome = outcome;
     if (incidentType) filter.incidentType = incidentType;
     if (startDate || endDate) { filter.dateTime = {}; if (startDate) filter.dateTime.$gte = new Date(startDate); if (endDate) filter.dateTime.$lte = new Date(endDate); }
     if (search) filter.$or = [{ incidentId: { $regex: search, $options: 'i' } }, { description: { $regex: search, $options: 'i' } }, { 'injuredPerson.name': { $regex: search, $options: 'i' } }];
@@ -194,26 +195,46 @@ exports.managerConfirm = async (req, res, next) => {
       notes: req.body.notes || '',
       confirmedAt: new Date()
     };
-    incident.forwardedToDoctor = true;
+    
+    // Update outcome if provided by manager
+    if (req.body.outcome) {
+      incident.outcome = req.body.outcome;
+    }
+
     incident.status = 'under_investigation';
     incident.statusHistory.push({
       status: 'under_investigation',
       changedBy: req.user._id,
-      notes: `Manager confirmed on-site. Notes: ${req.body.notes || 'None'}`
+      notes: `Manager confirmed on-site. Outcome: ${req.body.outcome || incident.outcome}. Notes: ${req.body.notes || 'None'}`
     });
-    await incident.save();
+    
+    // Only forward and notify doctors if referred
+    if (incident.outcome === 'referred_to_doctor') {
+      incident.forwardedToDoctor = true;
+      const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
+      const Notification = require('../models/Notification');
+      const notifications = doctors.map(d => ({
+        recipient: d._id, company: incident.company, type: 'incident_alert',
+        title: `Incident ${incident.incidentId} requires medical attention`,
+        message: `Manager has referred an employee to the doctor. Please review.`,
+        severity: 'warning',
+        relatedModel: 'Incident', relatedId: incident._id
+      }));
+      if (notifications.length) await Notification.insertMany(notifications);
+    } else {
+      incident.forwardedToDoctor = false;
+      // If they returned to work, we can just resolve it directly since no doctor is needed
+      if (incident.outcome === 'returned_to_work') {
+        incident.status = 'resolved';
+        incident.statusHistory.push({
+          status: 'resolved',
+          changedBy: req.user._id,
+          notes: 'Resolved automatically as worker returned to work.'
+        });
+      }
+    }
 
-    // Notify doctors
-    const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
-    const Notification = require('../models/Notification');
-    const notifications = doctors.map(d => ({
-      recipient: d._id, company: incident.company, type: 'incident_alert',
-      title: `Incident ${incident.incidentId} confirmed by manager`,
-      message: `Manager has confirmed incident on-site. Please review.`,
-      severity: 'warning',
-      relatedModel: 'Incident', relatedId: incident._id
-    }));
-    if (notifications.length) await Notification.insertMany(notifications);
+    await incident.save();
 
     const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code').populate('managerConfirmation.confirmedBy', 'name');
     res.json({ success: true, data: populated });
@@ -236,7 +257,7 @@ exports.doctorReview = async (req, res, next) => {
       changedBy: req.user._id,
       notes: `Doctor reviewed. Notes: ${req.body.notes || 'None'}`
     });
-    // Deduct from First Aid Box if applicable
+    // Deduct from First Aid Box if applicable (stocks-aware, FIFO by expiry)
     if (incident.firstAidBoxUsed && incident.itemsUsed && incident.itemsUsed.length > 0) {
       const FirstAidBox = require('../models/FirstAidBox');
       const box = await FirstAidBox.findById(incident.firstAidBoxUsed);
@@ -245,8 +266,35 @@ exports.doctorReview = async (req, res, next) => {
         incident.itemsUsed.forEach(usage => {
           const itemIndex = box.items.findIndex(i => i.item.toString() === usage.item.toString());
           if (itemIndex > -1) {
-            box.items[itemIndex].currentQty -= usage.quantity;
-            if (box.items[itemIndex].currentQty < 0) box.items[itemIndex].currentQty = 0;
+            const boxItem = box.items[itemIndex];
+            let remaining = usage.quantity;
+
+            if (boxItem.stocks && boxItem.stocks.length > 0) {
+              // Sort stocks by expiry date (soonest first = FIFO)
+              boxItem.stocks.sort((a, b) => {
+                if (!a.expiryDate) return 1;
+                if (!b.expiryDate) return -1;
+                return new Date(a.expiryDate) - new Date(b.expiryDate);
+              });
+
+              // Deduct from each stock in order
+              for (const stock of boxItem.stocks) {
+                if (remaining <= 0) break;
+                const deduct = Math.min(remaining, stock.quantity);
+                stock.quantity -= deduct;
+                remaining -= deduct;
+              }
+
+              // Remove depleted stocks (quantity = 0)
+              boxItem.stocks = boxItem.stocks.filter(s => s.quantity > 0);
+
+              // Update legacy currentQty to match total stocks
+              boxItem.currentQty = boxItem.stocks.reduce((sum, s) => sum + s.quantity, 0);
+            } else {
+              // Legacy: just deduct from currentQty
+              boxItem.currentQty -= usage.quantity;
+              if (boxItem.currentQty < 0) boxItem.currentQty = 0;
+            }
             boxUpdated = true;
           }
         });

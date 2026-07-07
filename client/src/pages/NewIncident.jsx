@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useScanner } from '../contexts/ScannerContext';
 import { createIncident, getDepartments, getUsers } from '../services/api';
-import { ArrowLeft, ArrowRight, Save, AlertTriangle, MapPin, Radio, Stethoscope, Briefcase } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, AlertTriangle, MapPin, Radio, Stethoscope, Briefcase, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Injured Person', 'Incident Details', 'Outcome'];
@@ -32,6 +32,7 @@ const NewIncident = () => {
   const { t, user } = useAuth();
   const { selectedScanner } = useScanner();
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState(0);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -67,6 +68,24 @@ const NewIncident = () => {
       setDepartments(d.data.data);
     }).catch(console.error);
   }, []);
+
+  // Pre-fill from QR Scan if state exists
+  useEffect(() => {
+    if (location.state?.scannedUser) {
+      const u = location.state.scannedUser;
+      setForm(f => ({
+        ...f,
+        department: u.department?._id || u.department || f.department,
+        injuredPerson: {
+          ...f.injuredPerson,
+          name: u.name || '',
+          employeeId: u.employeeId || '',
+          department: u.department?._id || u.department || '',
+          designation: u.designation || ''
+        }
+      }));
+    }
+  }, [location.state]);
 
   const set = (path, val) => {
     setForm(f => {
@@ -131,13 +150,14 @@ const NewIncident = () => {
 
       {/* Scanner info bar */}
       {selectedScanner ? (
-        <div style={{marginBottom:16,padding:'12px 18px',background:'rgba(99, 102, 241, 0.06)',border:'1.5px solid rgba(99, 102, 241, 0.2)',borderRadius:10,display:'flex',alignItems:'center',gap:10,fontSize:'0.88rem'}}>
+        <div style={{marginBottom:16,padding:'12px 18px',background:'rgba(99, 102, 241, 0.06)',border:'1.5px solid rgba(99, 102, 241, 0.2)',borderRadius:10,display:'flex',alignItems:'center',gap:10,fontSize:'0.88rem',flexWrap:'wrap'}}>
           <Radio size={16} color="var(--blue-600)" />
-          <span style={{fontWeight:600,color:'var(--blue-600)'}}>Scanner:</span>
-          <span style={{color:'var(--text-main)',fontWeight:500}}>{scannerName}</span>
+          <span style={{padding:'2px 8px',background:'rgba(99,102,241,0.12)',borderRadius:6,fontWeight:700,fontSize:'0.78rem',color:'var(--blue-600)',letterSpacing:'0.3px'}}>{selectedScanner.scannerId}</span>
+          <span style={{color:'var(--text-main)',fontWeight:600}}>{scannerName}</span>
           <span style={{color:'var(--text-muted)'}}>·</span>
           <MapPin size={14} color="var(--text-muted)" />
           <span style={{color:'var(--text-secondary)'}}>{scannerLocation}</span>
+          {selectedScanner.floor && <><span style={{color:'var(--text-muted)'}}>·</span><span style={{color:'var(--text-muted)',fontSize:'0.82rem'}}>{selectedScanner.floor}</span></>}
         </div>
       ) : (
         <div style={{marginBottom:16,padding:'12px 18px',background:'rgba(245, 158, 11, 0.08)',border:'1.5px dashed rgba(245, 158, 11, 0.3)',borderRadius:10,display:'flex',alignItems:'center',gap:10,fontSize:'0.88rem',color:'#f59e0b'}}>
@@ -315,12 +335,51 @@ const NewIncident = () => {
                   {form.outcome === 'returned_to_work' && <div style={{width:12,height:12,borderRadius:'50%',background:'#10B981'}} />}
                 </div>
               </button>
+
+              {/* Option 3: Pending Manager Confirmation */}
+              <button
+                type="button"
+                onClick={() => set('outcome', 'pending_confirmation')}
+                style={{
+                  display:'flex', alignItems:'center', gap:16, padding:'20px 24px',
+                  background: form.outcome === 'pending_confirmation' ? 'rgba(249, 115, 22, 0.08)' : 'var(--bg-app)',
+                  border: `2px solid ${form.outcome === 'pending_confirmation' ? '#f97316' : 'var(--border-color)'}`,
+                  borderRadius:12, cursor:'pointer', textAlign:'left', transition:'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  width:52,height:52,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+                  background: form.outcome === 'pending_confirmation' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(249, 115, 22, 0.06)',
+                  color: '#f97316'
+                }}>
+                  <Clock size={26} />
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:'1rem',color:'var(--text-main)',marginBottom:4}}>Pending Manager Confirmation</div>
+                  <div style={{fontSize:'0.85rem',color:'var(--text-secondary)',lineHeight:1.5}}>
+                    Not sure what to do? A manager will visit the scene and decide whether to send you to a doctor or back to work.
+                  </div>
+                </div>
+                <div style={{
+                  width:22,height:22,borderRadius:'50%',border:`2px solid ${form.outcome === 'pending_confirmation' ? '#f97316' : 'var(--border-color)'}`,
+                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
+                }}>
+                  {form.outcome === 'pending_confirmation' && <div style={{width:12,height:12,borderRadius:'50%',background:'#f97316'}} />}
+                </div>
+              </button>
             </div>
 
             {form.outcome === 'referred_to_doctor' && (
               <div style={{marginTop:16,padding:14,background:'rgba(99,102,241,0.06)',border:'1px solid rgba(99,102,241,0.15)',borderRadius:10,display:'flex',gap:10,alignItems:'center',fontSize:'0.85rem',color:'var(--text-secondary)'}}>
                 <Stethoscope size={16} color="var(--blue-600)" />
                 <span>The doctor will add treatment details, prescriptions, and further assessment to this incident report.</span>
+              </div>
+            )}
+
+            {form.outcome === 'pending_confirmation' && (
+              <div style={{marginTop:16,padding:14,background:'rgba(249,115,22,0.06)',border:'1px solid rgba(249,115,22,0.15)',borderRadius:10,display:'flex',gap:10,alignItems:'center',fontSize:'0.85rem',color:'var(--text-secondary)'}}>
+                <Clock size={16} color="#f97316" />
+                <span>Your manager will be notified and will visit you on-site to assess the situation and decide the next step.</span>
               </div>
             )}
 
