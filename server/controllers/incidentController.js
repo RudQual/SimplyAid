@@ -263,7 +263,12 @@ exports.getIncidents = async (req, res, next) => {
     const { department, severity, status, incidentType, outcome, startDate, endDate, search, page = 1, limit = 20 } = req.query;
     const filter = { company: companyId };
 
-    if (department) filter.department = department;
+    // Managers can only see incidents for their own department
+    if (req.user.role === 'manager' && req.user.department) {
+      filter.department = req.user.department._id || req.user.department;
+    } else if (department) {
+      filter.department = department;
+    }
     if (severity) filter.severity = severity;
     if (status) filter.status = status;
     if (outcome) filter.outcome = outcome;

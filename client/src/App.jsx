@@ -81,13 +81,13 @@ const AppLayout = () => {
           <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
 
           {/* Doctor-only routes */}
-          <Route path="/inventory" element={<ProtectedRoute roles={['doctor', 'manager']}><Inventory /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute roles={['doctor']}><Inventory /></ProtectedRoute>} />
           <Route path="/treatments" element={<ProtectedRoute roles={['doctor']}><Treatments /></ProtectedRoute>} />
           <Route path="/treatments/new" element={<ProtectedRoute roles={['doctor']}><NewTreatment /></ProtectedRoute>} />
           <Route path="/treatments/:id" element={<ProtectedRoute roles={['doctor']}><TreatmentDetail /></ProtectedRoute>} />
           <Route path="/inventory/boxes/scan/:boxId" element={<ProtectedRoute><BoxProfile /></ProtectedRoute>} />
-          <Route path="/inventory/boxes/:boxId/inspect" element={<ProtectedRoute roles={['doctor', 'manager']}><InspectionForm /></ProtectedRoute>} />
-          <Route path="/expiry" element={<ProtectedRoute roles={['doctor', 'manager']}><ExpiryDashboard /></ProtectedRoute>} />
+          <Route path="/inventory/boxes/:boxId/inspect" element={<ProtectedRoute roles={['doctor']}><InspectionForm /></ProtectedRoute>} />
+          <Route path="/expiry" element={<ProtectedRoute roles={['doctor']}><ExpiryDashboard /></ProtectedRoute>} />
           <Route path="/compliance" element={<ProtectedRoute roles={['doctor']}><ComplianceDashboard /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute roles={['doctor']}><SafetyAnalytics /></ProtectedRoute>} />
           <Route path="/ai-assistant" element={<ProtectedRoute roles={['doctor']}><AIAssistant /></ProtectedRoute>} />

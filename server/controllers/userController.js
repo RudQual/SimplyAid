@@ -9,7 +9,13 @@ exports.getUsers = async (req, res, next) => {
     const { department, role, isActive, search } = req.query;
 
     const filter = { company: companyId };
-    if (department) filter.department = department;
+    
+    // Managers can only see employees in their own department
+    if (req.user.role === 'manager' && req.user.department) {
+      filter.department = req.user.department._id || req.user.department;
+    } else if (department) {
+      filter.department = department;
+    }
     if (role) filter.role = role;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (search) {
