@@ -7,15 +7,48 @@ import './Login.css';
 
 // ── Demo account data (hardcoded fallback) ──
 const DEMO_ACCOUNTS = [
-  { name: 'Ravi Kumar', email: 'ravi@simplyaid.com', role: 'employee', designation: 'Machine Operator', dept: 'Production' },
-  { name: 'Anita Sharma', email: 'anita@simplyaid.com', role: 'employee', designation: 'Floor Supervisor', dept: 'Production' },
-  { name: 'Sunil Yadav', email: 'sunil@simplyaid.com', role: 'employee', designation: 'Technician', dept: 'Maintenance' },
-  { name: 'Kavita Nair', email: 'kavita@simplyaid.com', role: 'employee', designation: 'Safety Inspector', dept: 'Safety & EHS' },
+  // Doctors (3)
+  { name: 'Dr. Arun Desai', email: 'arun@simplyaid.com', role: 'doctor', designation: 'Head Doctor', dept: 'Administration', isHead: true },
+  { name: 'Dr. Meena Iyer', email: 'meena@simplyaid.com', role: 'doctor', designation: 'Factory Doctor', dept: 'Safety & EHS' },
+  { name: 'Dr. Priya Kapoor', email: 'priya@simplyaid.com', role: 'doctor', designation: 'Occupational Health', dept: 'Production' },
+  // Managers (5)
+  { name: 'Rajesh Gupta', email: 'rajesh@simplyaid.com', role: 'manager', designation: 'Head Manager', dept: 'Administration', isHead: true },
   { name: 'Vikram Patel', email: 'vikram@simplyaid.com', role: 'manager', designation: 'Production Manager', dept: 'Production' },
   { name: 'Deepak Joshi', email: 'deepak@simplyaid.com', role: 'manager', designation: 'Maintenance Manager', dept: 'Maintenance' },
-  { name: 'Rajesh Gupta', email: 'rajesh@simplyaid.com', role: 'manager', designation: 'Head Manager', dept: 'Administration', isHead: true },
-  { name: 'Dr. Meena Iyer', email: 'meena@simplyaid.com', role: 'doctor', designation: 'Factory Doctor', dept: 'Safety & EHS' },
-  { name: 'Dr. Arun Desai', email: 'arun@simplyaid.com', role: 'doctor', designation: 'Head Doctor', dept: 'Administration', isHead: true },
+  { name: 'Neha Kulkarni', email: 'neha@simplyaid.com', role: 'manager', designation: 'QC Manager', dept: 'Quality Control' },
+  { name: 'Sanjay Tiwari', email: 'sanjay@simplyaid.com', role: 'manager', designation: 'Logistics Manager', dept: 'Logistics' },
+  // Employees — Production (6)
+  { name: 'Ravi Kumar', email: 'ravi@simplyaid.com', role: 'employee', designation: 'Machine Operator', dept: 'Production' },
+  { name: 'Anita Sharma', email: 'anita@simplyaid.com', role: 'employee', designation: 'Floor Supervisor', dept: 'Production' },
+  { name: 'Mohan Rao', email: 'mohan@simplyaid.com', role: 'employee', designation: 'Welder', dept: 'Production' },
+  { name: 'Lakshmi Devi', email: 'lakshmi@simplyaid.com', role: 'employee', designation: 'Assembly Line Worker', dept: 'Production' },
+  { name: 'Ramesh Patil', email: 'ramesh@simplyaid.com', role: 'employee', designation: 'CNC Operator', dept: 'Production' },
+  { name: 'Pooja Bhat', email: 'pooja.b@simplyaid.com', role: 'employee', designation: 'Production Helper', dept: 'Production' },
+  // Employees — Maintenance (4)
+  { name: 'Sunil Yadav', email: 'sunil@simplyaid.com', role: 'employee', designation: 'Technician', dept: 'Maintenance' },
+  { name: 'Arvind Mishra', email: 'arvind@simplyaid.com', role: 'employee', designation: 'Electrician', dept: 'Maintenance' },
+  { name: 'Ganesh Bhosle', email: 'ganesh@simplyaid.com', role: 'employee', designation: 'Plumber', dept: 'Maintenance' },
+  { name: 'Dinesh Sawant', email: 'dinesh@simplyaid.com', role: 'employee', designation: 'HVAC Technician', dept: 'Maintenance' },
+  // Employees — QC (3)
+  { name: 'Sunita Kadam', email: 'sunita@simplyaid.com', role: 'employee', designation: 'Quality Inspector', dept: 'Quality Control' },
+  { name: 'Ajay Chavan', email: 'ajay@simplyaid.com', role: 'employee', designation: 'Lab Technician', dept: 'Quality Control' },
+  { name: 'Meghna Jain', email: 'meghna@simplyaid.com', role: 'employee', designation: 'Testing Analyst', dept: 'Quality Control' },
+  // Employees — Safety (2)
+  { name: 'Kavita Nair', email: 'kavita@simplyaid.com', role: 'employee', designation: 'Safety Inspector', dept: 'Safety & EHS' },
+  { name: 'Nitin Pawar', email: 'nitin@simplyaid.com', role: 'employee', designation: 'Fire Safety Officer', dept: 'Safety & EHS' },
+  // Employees — Logistics (3)
+  { name: 'Prakash Gaikwad', email: 'prakash@simplyaid.com', role: 'employee', designation: 'Warehouse Supervisor', dept: 'Logistics' },
+  { name: 'Rekha Mane', email: 'rekha@simplyaid.com', role: 'employee', designation: 'Dispatch Coordinator', dept: 'Logistics' },
+  { name: 'Vishal Kale', email: 'vishal@simplyaid.com', role: 'employee', designation: 'Forklift Operator', dept: 'Logistics' },
+  // Employees — Stores (2)
+  { name: 'Ashok Jadhav', email: 'ashok@simplyaid.com', role: 'employee', designation: 'Store Keeper', dept: 'Stores & Warehouse' },
+  { name: 'Seema Patil', email: 'seema@simplyaid.com', role: 'employee', designation: 'Inventory Clerk', dept: 'Stores & Warehouse' },
+  // Employees — HR (2)
+  { name: 'Pooja Mehta', email: 'pooja@simplyaid.com', role: 'employee', designation: 'HR Executive', dept: 'Human Resources' },
+  { name: 'Amit Thakur', email: 'amit@simplyaid.com', role: 'employee', designation: 'Payroll Officer', dept: 'Human Resources' },
+  // Employees — Admin (2)
+  { name: 'Sneha Deshpande', email: 'sneha@simplyaid.com', role: 'employee', designation: 'Admin Executive', dept: 'Administration' },
+  { name: 'Rohit Shinde', email: 'rohit@simplyaid.com', role: 'employee', designation: 'Office Assistant', dept: 'Administration' },
 ];
 
 const ROLE_CONFIG = {

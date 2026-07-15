@@ -61,92 +61,332 @@ const seedDB = async () => {
     ]);
     console.log('🏢 Departments created');
 
-    // Helpers
     const dept = (code) => depts.find(d => d.code === code);
-
-    // ── 3. Create Users (10 demo accounts) ──
-    // Password for ALL accounts: Demo@123
     const PASS = 'Demo@123';
 
+    // ══════════════════════════════════════════════
+    //  3. CREATE ALL USERS
+    //  Hierarchy: Employee → Manager (Head Manager) → Doctor (Head Doctor)
+    // ══════════════════════════════════════════════
+
     const users = await User.create([
-      // ─── Employees (4) ───
+
+      // ════════════════════════════════════════════
+      //  DOCTORS (3) — Medical staff across factory
+      // ════════════════════════════════════════════
+
+      // Head Doctor — Chief Medical Officer, oversees all medical operations
+      {
+        name: 'Dr. Arun Desai', email: 'arun@simplyaid.com', password: PASS,
+        role: 'doctor', company: company._id, department: dept('ADMIN')._id,
+        employeeId: 'DOC001', phone: '9876543208', designation: 'Head Doctor',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
+        firstAidCertified: true, certificationExpiry: new Date('2028-03-15')
+      },
+      // Factory Doctor — handles Safety & EHS department medical needs
+      {
+        name: 'Dr. Meena Iyer', email: 'meena@simplyaid.com', password: PASS,
+        role: 'doctor', company: company._id, department: dept('SAFETY')._id,
+        employeeId: 'DOC002', phone: '9876543207', designation: 'Factory Doctor',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
+        firstAidCertified: true, certificationExpiry: new Date('2028-01-10')
+      },
+      // Occupational Health Doctor — covers Production & Maintenance floors
+      {
+        name: 'Dr. Priya Kapoor', email: 'priya@simplyaid.com', password: PASS,
+        role: 'doctor', company: company._id, department: dept('PROD')._id,
+        employeeId: 'DOC003', phone: '9876543209', designation: 'Occupational Health Doctor',
+        factoryLocation: 'Building A - Medical Room', shiftTiming: 'Morning (6AM-2PM)',
+        firstAidCertified: true, certificationExpiry: new Date('2028-06-20')
+      },
+
+      // ════════════════════════════════════════════
+      //  MANAGERS (5) — One per major department + Head Manager
+      // ════════════════════════════════════════════
+
+      // Head Manager — oversees the entire factory
+      {
+        name: 'Rajesh Gupta', email: 'rajesh@simplyaid.com', password: PASS,
+        role: 'manager', company: company._id, department: dept('ADMIN')._id,
+        employeeId: 'MGR001', phone: '9876543210', designation: 'Head Manager',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)'
+      },
+      // Production Manager — manages all production employees
+      {
+        name: 'Vikram Patel', email: 'vikram@simplyaid.com', password: PASS,
+        role: 'manager', company: company._id, department: dept('PROD')._id,
+        employeeId: 'MGR002', phone: '9876543205', designation: 'Production Manager',
+        factoryLocation: 'Building A', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Rajesh Gupta'
+      },
+      // Maintenance Manager — manages maintenance team
+      {
+        name: 'Deepak Joshi', email: 'deepak@simplyaid.com', password: PASS,
+        role: 'manager', company: company._id, department: dept('MAINT')._id,
+        employeeId: 'MGR003', phone: '9876543206', designation: 'Maintenance Manager',
+        factoryLocation: 'Building B', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Rajesh Gupta'
+      },
+      // QC Manager — manages quality control team
+      {
+        name: 'Neha Kulkarni', email: 'neha@simplyaid.com', password: PASS,
+        role: 'manager', company: company._id, department: dept('QC')._id,
+        employeeId: 'MGR004', phone: '9876543211', designation: 'QC Manager',
+        factoryLocation: 'Building A', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Rajesh Gupta'
+      },
+      // Logistics Manager — manages warehouse & logistics staff
+      {
+        name: 'Sanjay Tiwari', email: 'sanjay@simplyaid.com', password: PASS,
+        role: 'manager', company: company._id, department: dept('LOG')._id,
+        employeeId: 'MGR005', phone: '9876543212', designation: 'Logistics Manager',
+        factoryLocation: 'Building C', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Rajesh Gupta'
+      },
+
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — PRODUCTION DEPARTMENT (6)
+      //  Reports to: Vikram Patel (Production Manager)
+      //  Medical: Dr. Priya Kapoor (Occupational Health)
+      // ════════════════════════════════════════════
+
       {
         name: 'Ravi Kumar', email: 'ravi@simplyaid.com', password: PASS,
         role: 'employee', company: company._id, department: dept('PROD')._id,
         employeeId: 'EMP001', phone: '9876543201', designation: 'Machine Operator',
-        factoryLocation: 'Building A', shiftTiming: 'Morning (6AM-2PM)'
+        factoryLocation: 'Building A', shiftTiming: 'Morning (6AM-2PM)',
+        reportingManager: 'Vikram Patel'
       },
       {
         name: 'Anita Sharma', email: 'anita@simplyaid.com', password: PASS,
         role: 'employee', company: company._id, department: dept('PROD')._id,
         employeeId: 'EMP002', phone: '9876543202', designation: 'Floor Supervisor',
         factoryLocation: 'Building A', shiftTiming: 'Morning (6AM-2PM)',
-        firstAidCertified: true, certificationExpiry: new Date('2027-06-15')
+        firstAidCertified: true, certificationExpiry: new Date('2027-06-15'),
+        reportingManager: 'Vikram Patel'
       },
+      {
+        name: 'Mohan Rao', email: 'mohan@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('PROD')._id,
+        employeeId: 'EMP003', phone: '9876543213', designation: 'Welder',
+        factoryLocation: 'Building A', shiftTiming: 'Afternoon (2PM-10PM)',
+        reportingManager: 'Vikram Patel'
+      },
+      {
+        name: 'Lakshmi Devi', email: 'lakshmi@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('PROD')._id,
+        employeeId: 'EMP004', phone: '9876543214', designation: 'Assembly Line Worker',
+        factoryLocation: 'Building A', shiftTiming: 'Morning (6AM-2PM)',
+        reportingManager: 'Vikram Patel'
+      },
+      {
+        name: 'Ramesh Patil', email: 'ramesh@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('PROD')._id,
+        employeeId: 'EMP005', phone: '9876543215', designation: 'CNC Operator',
+        factoryLocation: 'Building A', shiftTiming: 'Afternoon (2PM-10PM)',
+        reportingManager: 'Vikram Patel'
+      },
+      {
+        name: 'Pooja Bhat', email: 'pooja.b@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('PROD')._id,
+        employeeId: 'EMP006', phone: '9876543216', designation: 'Production Helper',
+        factoryLocation: 'Building A', shiftTiming: 'Night (10PM-6AM)',
+        reportingManager: 'Vikram Patel'
+      },
+
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — MAINTENANCE DEPARTMENT (4)
+      //  Reports to: Deepak Joshi (Maintenance Manager)
+      //  Medical: Dr. Priya Kapoor (Occupational Health)
+      // ════════════════════════════════════════════
+
       {
         name: 'Sunil Yadav', email: 'sunil@simplyaid.com', password: PASS,
         role: 'employee', company: company._id, department: dept('MAINT')._id,
-        employeeId: 'EMP003', phone: '9876543203', designation: 'Technician',
-        factoryLocation: 'Building B', shiftTiming: 'General (9AM-6PM)'
+        employeeId: 'EMP007', phone: '9876543203', designation: 'Technician',
+        factoryLocation: 'Building B', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Deepak Joshi'
       },
+      {
+        name: 'Arvind Mishra', email: 'arvind@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('MAINT')._id,
+        employeeId: 'EMP008', phone: '9876543217', designation: 'Electrician',
+        factoryLocation: 'Building B', shiftTiming: 'Morning (6AM-2PM)',
+        firstAidCertified: true, certificationExpiry: new Date('2027-11-10'),
+        reportingManager: 'Deepak Joshi'
+      },
+      {
+        name: 'Ganesh Bhosle', email: 'ganesh@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('MAINT')._id,
+        employeeId: 'EMP009', phone: '9876543218', designation: 'Plumber',
+        factoryLocation: 'Building B', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Deepak Joshi'
+      },
+      {
+        name: 'Dinesh Sawant', email: 'dinesh@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('MAINT')._id,
+        employeeId: 'EMP010', phone: '9876543219', designation: 'HVAC Technician',
+        factoryLocation: 'Building B', shiftTiming: 'Afternoon (2PM-10PM)',
+        reportingManager: 'Deepak Joshi'
+      },
+
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — QUALITY CONTROL (3)
+      //  Reports to: Neha Kulkarni (QC Manager)
+      //  Medical: Dr. Meena Iyer (Factory Doctor)
+      // ════════════════════════════════════════════
+
+      {
+        name: 'Sunita Kadam', email: 'sunita@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('QC')._id,
+        employeeId: 'EMP011', phone: '9876543220', designation: 'Quality Inspector',
+        factoryLocation: 'Building A', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Neha Kulkarni'
+      },
+      {
+        name: 'Ajay Chavan', email: 'ajay@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('QC')._id,
+        employeeId: 'EMP012', phone: '9876543221', designation: 'Lab Technician',
+        factoryLocation: 'Building A', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Neha Kulkarni'
+      },
+      {
+        name: 'Meghna Jain', email: 'meghna@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('QC')._id,
+        employeeId: 'EMP013', phone: '9876543222', designation: 'Testing Analyst',
+        factoryLocation: 'Building A', shiftTiming: 'Morning (6AM-2PM)',
+        reportingManager: 'Neha Kulkarni'
+      },
+
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — SAFETY & EHS (2)
+      //  Reports to: Rajesh Gupta (Head Manager — no dedicated safety manager)
+      //  Medical: Dr. Meena Iyer (Factory Doctor)
+      // ════════════════════════════════════════════
+
       {
         name: 'Kavita Nair', email: 'kavita@simplyaid.com', password: PASS,
         role: 'employee', company: company._id, department: dept('SAFETY')._id,
-        employeeId: 'EMP004', phone: '9876543204', designation: 'Safety Inspector',
+        employeeId: 'EMP014', phone: '9876543204', designation: 'Safety Inspector',
         factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
-        firstAidCertified: true, certificationExpiry: new Date('2027-09-20')
+        firstAidCertified: true, certificationExpiry: new Date('2027-09-20'),
+        reportingManager: 'Rajesh Gupta'
+      },
+      {
+        name: 'Nitin Pawar', email: 'nitin@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('SAFETY')._id,
+        employeeId: 'EMP015', phone: '9876543223', designation: 'Fire Safety Officer',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
+        firstAidCertified: true, certificationExpiry: new Date('2027-08-05'),
+        reportingManager: 'Rajesh Gupta'
       },
 
-      // ─── Managers (3, including Head Manager) ───
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — LOGISTICS & WAREHOUSE (3)
+      //  Reports to: Sanjay Tiwari (Logistics Manager)
+      //  Medical: Dr. Arun Desai (Head Doctor)
+      // ════════════════════════════════════════════
+
       {
-        name: 'Vikram Patel', email: 'vikram@simplyaid.com', password: PASS,
-        role: 'manager', company: company._id, department: dept('PROD')._id,
-        employeeId: 'MGR001', phone: '9876543205', designation: 'Production Manager',
-        factoryLocation: 'Building A', shiftTiming: 'General (9AM-6PM)'
+        name: 'Prakash Gaikwad', email: 'prakash@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('LOG')._id,
+        employeeId: 'EMP016', phone: '9876543224', designation: 'Warehouse Supervisor',
+        factoryLocation: 'Building C', shiftTiming: 'General (9AM-6PM)',
+        firstAidCertified: true, certificationExpiry: new Date('2027-12-01'),
+        reportingManager: 'Sanjay Tiwari'
       },
       {
-        name: 'Deepak Joshi', email: 'deepak@simplyaid.com', password: PASS,
-        role: 'manager', company: company._id, department: dept('MAINT')._id,
-        employeeId: 'MGR002', phone: '9876543206', designation: 'Maintenance Manager',
-        factoryLocation: 'Building B', shiftTiming: 'General (9AM-6PM)'
+        name: 'Rekha Mane', email: 'rekha@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('LOG')._id,
+        employeeId: 'EMP017', phone: '9876543225', designation: 'Dispatch Coordinator',
+        factoryLocation: 'Building C', shiftTiming: 'Morning (6AM-2PM)',
+        reportingManager: 'Sanjay Tiwari'
       },
       {
-        name: 'Rajesh Gupta', email: 'rajesh@simplyaid.com', password: PASS,
-        role: 'manager', company: company._id, department: dept('ADMIN')._id,
-        employeeId: 'MGR003', phone: '9876543210', designation: 'Head Manager',
-        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)'
+        name: 'Vishal Kale', email: 'vishal@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('LOG')._id,
+        employeeId: 'EMP018', phone: '9876543226', designation: 'Forklift Operator',
+        factoryLocation: 'Building C', shiftTiming: 'Afternoon (2PM-10PM)',
+        reportingManager: 'Sanjay Tiwari'
       },
 
-      // ─── Doctors (2, including Head Doctor) ───
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — STORES & WAREHOUSE (2)
+      //  Reports to: Sanjay Tiwari (Logistics Manager — covers stores too)
+      //  Medical: Dr. Arun Desai (Head Doctor)
+      // ════════════════════════════════════════════
+
       {
-        name: 'Dr. Meena Iyer', email: 'meena@simplyaid.com', password: PASS,
-        role: 'doctor', company: company._id, department: dept('SAFETY')._id,
-        employeeId: 'DOC001', phone: '9876543207', designation: 'Factory Doctor',
-        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
-        firstAidCertified: true, certificationExpiry: new Date('2028-01-10')
+        name: 'Ashok Jadhav', email: 'ashok@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('STORE')._id,
+        employeeId: 'EMP019', phone: '9876543227', designation: 'Store Keeper',
+        factoryLocation: 'Building C', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Sanjay Tiwari'
       },
       {
-        name: 'Dr. Arun Desai', email: 'arun@simplyaid.com', password: PASS,
-        role: 'doctor', company: company._id, department: dept('ADMIN')._id,
-        employeeId: 'DOC002', phone: '9876543208', designation: 'Head Doctor',
+        name: 'Seema Patil', email: 'seema@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('STORE')._id,
+        employeeId: 'EMP020', phone: '9876543228', designation: 'Inventory Clerk',
+        factoryLocation: 'Building C', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Sanjay Tiwari'
+      },
+
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — HR (2)
+      //  Reports to: Rajesh Gupta (Head Manager)
+      //  Medical: Dr. Arun Desai (Head Doctor)
+      // ════════════════════════════════════════════
+
+      {
+        name: 'Pooja Mehta', email: 'pooja@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('HR')._id,
+        employeeId: 'EMP021', phone: '9876543229', designation: 'HR Executive',
         factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
-        firstAidCertified: true, certificationExpiry: new Date('2028-03-15')
+        reportingManager: 'Rajesh Gupta'
+      },
+      {
+        name: 'Amit Thakur', email: 'amit@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('HR')._id,
+        employeeId: 'EMP022', phone: '9876543230', designation: 'Payroll Officer',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Rajesh Gupta'
+      },
+
+      // ════════════════════════════════════════════
+      //  EMPLOYEES — ADMINISTRATION (2)
+      //  Reports to: Rajesh Gupta (Head Manager)
+      //  Medical: Dr. Arun Desai (Head Doctor)
+      // ════════════════════════════════════════════
+
+      {
+        name: 'Sneha Deshpande', email: 'sneha@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('ADMIN')._id,
+        employeeId: 'EMP023', phone: '9876543231', designation: 'Admin Executive',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Rajesh Gupta'
+      },
+      {
+        name: 'Rohit Shinde', email: 'rohit@simplyaid.com', password: PASS,
+        role: 'employee', company: company._id, department: dept('ADMIN')._id,
+        employeeId: 'EMP024', phone: '9876543232', designation: 'Office Assistant',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)',
+        reportingManager: 'Rajesh Gupta'
       }
     ]);
-    console.log('👥 Users created (10 demo accounts)');
 
-    // Set Head of Department for Admin → Rajesh (Head Manager)
-    const rajesh = users.find(u => u.name === 'Rajesh Gupta');
-    await Department.findByIdAndUpdate(dept('ADMIN')._id, { headOfDepartment: rajesh._id });
+    const totalEmployees = users.filter(u => u.role === 'employee').length;
+    const totalManagers = users.filter(u => u.role === 'manager').length;
+    const totalDoctors = users.filter(u => u.role === 'doctor').length;
+    console.log(`👥 Users created: ${users.length} total (${totalEmployees} employees, ${totalManagers} managers, ${totalDoctors} doctors)`);
 
-    // Set Head of Department for PROD → Vikram
-    const vikram = users.find(u => u.name === 'Vikram Patel');
-    await Department.findByIdAndUpdate(dept('PROD')._id, { headOfDepartment: vikram._id });
+    // ── Set Department Heads ──
+    const findUser = (name) => users.find(u => u.name === name);
 
-    // Set Head of Department for MAINT → Deepak
-    const deepak = users.find(u => u.name === 'Deepak Joshi');
-    await Department.findByIdAndUpdate(dept('MAINT')._id, { headOfDepartment: deepak._id });
-
+    await Department.findByIdAndUpdate(dept('ADMIN')._id, { headOfDepartment: findUser('Rajesh Gupta')._id });
+    await Department.findByIdAndUpdate(dept('PROD')._id, { headOfDepartment: findUser('Vikram Patel')._id });
+    await Department.findByIdAndUpdate(dept('MAINT')._id, { headOfDepartment: findUser('Deepak Joshi')._id });
+    await Department.findByIdAndUpdate(dept('QC')._id, { headOfDepartment: findUser('Neha Kulkarni')._id });
+    await Department.findByIdAndUpdate(dept('LOG')._id, { headOfDepartment: findUser('Sanjay Tiwari')._id });
     console.log('🏢 Department heads assigned');
 
     // ── 4. Create Inventory Items (Indian Factories Rules) ──
@@ -175,10 +415,7 @@ const seedDB = async () => {
     console.log('📦 Inventory items created (20 prescribed items)');
 
     // ── 5. Create First Aid Boxes ──
-    const kavita = users.find(u => u.name === 'Kavita Nair');
-    const anita = users.find(u => u.name === 'Anita Sharma');
     const classType = 'B';
-
     const boxItems = items.map(item => ({
       item: item._id,
       currentQty: item.requiredQty[`class${classType}`],
@@ -186,27 +423,40 @@ const seedDB = async () => {
     }));
 
     await FirstAidBox.insertMany([
-      { boxId: 'FAB-PROD-001', company: company._id, department: dept('PROD')._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType, inCharge: anita._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
-      { boxId: 'FAB-MAINT-001', company: company._id, department: dept('MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType, inCharge: kavita._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
-      { boxId: 'FAB-ADMIN-001', company: company._id, department: dept('ADMIN')._id, location: 'Main Office - Reception Area', floor: '1st', classType: 'A', inCharge: kavita._id, items: items.map(item => ({ item: item._id, currentQty: item.requiredQty.classA, requiredQty: item.requiredQty.classA })), lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' }
+      { boxId: 'FAB-PROD-001', company: company._id, department: dept('PROD')._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType, inCharge: findUser('Anita Sharma')._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
+      { boxId: 'FAB-MAINT-001', company: company._id, department: dept('MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType, inCharge: findUser('Arvind Mishra')._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
+      { boxId: 'FAB-ADMIN-001', company: company._id, department: dept('ADMIN')._id, location: 'Main Office - Reception Area', floor: '1st', classType: 'A', inCharge: findUser('Kavita Nair')._id, items: items.map(item => ({ item: item._id, currentQty: item.requiredQty.classA, requiredQty: item.requiredQty.classA })), lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
+      { boxId: 'FAB-LOG-001', company: company._id, department: dept('LOG')._id, location: 'Warehouse - Loading Dock', floor: 'Ground', classType, inCharge: findUser('Prakash Gaikwad')._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' }
     ]);
-    console.log('🩹 First Aid Boxes created (3 boxes)');
+    console.log('🩹 First Aid Boxes created (4 boxes)');
 
     // ── Summary ──
-    console.log('\n✅ Seed complete! All 10 demo accounts created.');
+    console.log('\n✅ Seed complete! All accounts created.');
     console.log('   Password for ALL accounts: Demo@123\n');
-    console.log('   ── Employees ──');
-    console.log('   Ravi Kumar        ravi@simplyaid.com      (Production - Machine Operator)');
-    console.log('   Anita Sharma      anita@simplyaid.com     (Production - Floor Supervisor)');
-    console.log('   Sunil Yadav       sunil@simplyaid.com     (Maintenance - Technician)');
-    console.log('   Kavita Nair       kavita@simplyaid.com    (Safety - Safety Inspector)');
-    console.log('   ── Managers ──');
+
+    console.log('   ═══ DOCTORS (3) ═══');
+    console.log('   Dr. Arun Desai    arun@simplyaid.com      (⭐ Head Doctor — Administration)');
+    console.log('   Dr. Meena Iyer    meena@simplyaid.com     (Factory Doctor — Safety & EHS)');
+    console.log('   Dr. Priya Kapoor  priya@simplyaid.com     (Occupational Health — Production)');
+
+    console.log('\n   ═══ MANAGERS (5) ═══');
+    console.log('   Rajesh Gupta      rajesh@simplyaid.com    (⭐ Head Manager — Administration)');
     console.log('   Vikram Patel      vikram@simplyaid.com    (Production Manager)');
     console.log('   Deepak Joshi      deepak@simplyaid.com    (Maintenance Manager)');
-    console.log('   Rajesh Gupta      rajesh@simplyaid.com    (⭐ Head Manager)');
-    console.log('   ── Doctors ──');
-    console.log('   Dr. Meena Iyer    meena@simplyaid.com     (Factory Doctor)');
-    console.log('   Dr. Arun Desai    arun@simplyaid.com      (⭐ Head Doctor)\n');
+    console.log('   Neha Kulkarni     neha@simplyaid.com      (QC Manager)');
+    console.log('   Sanjay Tiwari     sanjay@simplyaid.com    (Logistics Manager)');
+
+    console.log('\n   ═══ EMPLOYEES (24) ═══');
+    console.log('   Production (6):   Ravi, Anita, Mohan, Lakshmi, Ramesh, Pooja B. → reports to Vikram');
+    console.log('   Maintenance (4):  Sunil, Arvind, Ganesh, Dinesh → reports to Deepak');
+    console.log('   QC (3):           Sunita, Ajay, Meghna → reports to Neha');
+    console.log('   Safety (2):       Kavita, Nitin → reports to Rajesh');
+    console.log('   Logistics (3):    Prakash, Rekha, Vishal → reports to Sanjay');
+    console.log('   Stores (2):       Ashok, Seema → reports to Sanjay');
+    console.log('   HR (2):           Pooja M., Amit → reports to Rajesh');
+    console.log('   Admin (2):        Sneha, Rohit → reports to Rajesh\n');
+
+    console.log(`   TOTAL: ${users.length} accounts\n`);
 
     process.exit(0);
   } catch (error) {
