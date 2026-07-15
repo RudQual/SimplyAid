@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useScanner } from '../contexts/ScannerContext';
 import { getIncidents, getDepartments } from '../services/api';
 import { Plus, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Incidents = () => {
   const { t, requireAuth } = useAuth();
+  const { selectedScanner } = useScanner();
   const navigate = useNavigate();
   const [incidents, setIncidents] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -15,13 +17,17 @@ const Incidents = () => {
   const [filters, setFilters] = useState({ severity: '', status: '', department: '', search: '' });
 
   useEffect(() => { loadDepts(); }, []);
-  useEffect(() => { loadIncidents(); }, [page, filters]);
+  useEffect(() => { loadIncidents(); }, [page, filters, selectedScanner]);
 
   const loadDepts = async () => { try { const r = await getDepartments(); setDepartments(r.data.data); } catch(e){} };
   const loadIncidents = async () => {
     setLoading(true);
     try {
       const params = { page, limit: 15, ...Object.fromEntries(Object.entries(filters).filter(([_,v]) => v)) };
+      if (selectedScanner) {
+        if (selectedScanner.department && !params.department) params.department = typeof selectedScanner.department === 'string' ? selectedScanner.department : selectedScanner.department._id;
+        if (selectedScanner.location) params.location = selectedScanner.location;
+      }
       const r = await getIncidents(params);
       setIncidents(r.data.data); setTotalPages(r.data.pages || 1);
     } catch(e){} finally { setLoading(false); }
@@ -35,6 +41,15 @@ const Incidents = () => {
         <div><h1 className="page-title">{t('incidents.title')}</h1><p className="page-subtitle">Track and manage workplace incidents</p></div>
         <button className="btn btn-primary" onClick={() => requireAuth(() => navigate('/incidents/new'))}><Plus size={18} />{t('incidents.new')}</button>
       </div>
+
+      {selectedScanner && (
+        <div style={{ marginBottom: 20, padding: '12px 16px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Filter size={18} color="#6366f1" />
+          <span style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+            Filtered by active scanner: <strong>{selectedScanner.location}</strong>
+          </span>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="card" style={{marginBottom: 20, padding: '16px 20px'}}>

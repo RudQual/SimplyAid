@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getIncidents, managerConfirmIncident, managerFillIncident, getBoxes, getMedicationOptions } from '../services/api';
-import { ClipboardCheck, AlertTriangle, Eye, Send, MapPin, Clock, User, FileEdit, Package, X, ChevronDown, Plus, Trash2, Stethoscope, Briefcase } from 'lucide-react';
+import { getIncidents, getIncidentStats, managerConfirmIncident, managerFillIncident, getBoxes, getMedicationOptions } from '../services/api';
+import { ClipboardCheck, AlertTriangle, Eye, Send, MapPin, Clock, User, FileEdit, Package, X, ChevronDown, Plus, Trash2, Stethoscope, Briefcase, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const severityColors = {
@@ -31,7 +31,9 @@ const ManagerDashboard = () => {
   const fillIncidentId = searchParams.get('fillIncidentId');
 
   const [incidents, setIncidents]         = useState([]);
+  const [stats, setStats]                 = useState(null);
   const [loading, setLoading]             = useState(true);
+  const [activeTab, setActiveTab]         = useState('pending');
   const [confirmingId, setConfirmingId]   = useState(null);
   const [confirmNotes, setConfirmNotes]   = useState('');
   const [showModal, setShowModal]         = useState(false);
@@ -50,19 +52,15 @@ const ManagerDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [res, boxRes, medRes] = await Promise.all([
-        getIncidents({ status: 'reported', limit: 100 }),
+      const [res, statsRes, boxRes, medRes] = await Promise.all([
+        getIncidents({ limit: 100 }), // Gets latest 100 incidents overall (includes history)
+        getIncidentStats({ period: 30 }),
         getBoxes({}),
         getMedicationOptions(),
       ]);
-      // Also fetch incidents with pending_confirmation outcome (may be status: reported OR under_investigation)
-      const pendingConfRes = await getIncidents({ outcome: 'pending_confirmation', limit: 100 });
-      const loadedIncidents = res.data.data || [];
-      const pendingConfIncidents = (pendingConfRes.data.data || []).filter(
-        pc => !loadedIncidents.some(i => i._id === pc._id)
-      );
-      const allIncidents = [...loadedIncidents, ...pendingConfIncidents];
+      const allIncidents = res.data.data || [];
       setIncidents(allIncidents);
+      setStats(statsRes.data.data?.summary);
       setBoxes(boxRes.data.data || []);
       const { items: itemList } = medRes.data.data;
       const finalItems = itemList || [];
@@ -160,9 +158,12 @@ const ManagerDashboard = () => {
     }
   };
 
-  const pendingAssist  = incidents.filter(i => i.pendingManagerAssist);
-  const pendingOutcome  = incidents.filter(i => i.outcome === 'pending_confirmation' && !i.pendingManagerAssist && !i.managerConfirmation);
-  const normalPending   = incidents.filter(i => !i.pendingManagerAssist && i.outcome !== 'pending_confirmation' && !i.managerConfirmation);
+  const pendingAssist  = incidents.filter(i => i.pendingManagerAssist && i.status === 'reported');
+  const pendingOutcome  = incidents.filter(i => i.outcome === 'pending_confirmation' && !i.pendingManagerAssist && !i.managerConfirmation && i.status === 'reported');
+  const normalPending   = incidents.filter(i => !i.pendingManagerAssist && i.outcome !== 'pending_confirmation' && !i.managerConfirmation && i.status === 'reported');
+  
+  const historyIncidents = incidents.filter(i => i.managerConfirmation || i.status !== 'reported');
+  const totalPendingCount = pendingAssist.length + pendingOutcome.length + normalPending.length;
 
   // State for outcome selection in the confirmation modal
   const [confirmOutcome, setConfirmOutcome] = useState('');
@@ -175,21 +176,68 @@ const ManagerDashboard = () => {
           <h1 className="page-title">Manager Dashboard</h1>
           <p className="page-subtitle">Review incidents and assist employees on-site</p>
         </div>
-        <div className="stats-badge">
+        <div className="stats-badge" style={{ cursor: 'pointer' }} onClick={() => loadAll()}>
           <AlertTriangle size={18} />
-          <span>{incidents.length} Pending</span>
+          <span>{totalPendingCount} Pending</span>
         </div>
+      </div>
+
+      {stats && (
+        <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+          <div className="stat-card" style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="stat-icon-wrapper" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Activity size={20} />
+            </div>
+            <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '8px' }}>{stats.total || 0}</div>
+            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Incidents (30d)</div>
+          </div>
+          
+          <div className="stat-card" style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="stat-icon-wrapper" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(249, 115, 22, 0.1)', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertTriangle size={20} />
+            </div>
+            <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '8px' }}>{stats.openCases || 0}</div>
+            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Open Cases</div>
+          </div>
+
+          <div className="stat-card" style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="stat-icon-wrapper" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={20} />
+            </div>
+            <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '8px' }}>{stats.totalDaysLost || 0}</div>
+            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Days Lost (30d)</div>
+          </div>
+        </div>
+      )}
+
+      <div className="tabs" style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-color)', marginBottom: '24px' }}>
+        <button 
+          className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
+          onClick={() => setActiveTab('pending')}
+          style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'pending' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'pending' ? 'var(--accent)' : 'var(--text-muted)', fontWeight: activeTab === 'pending' ? '600' : '400', cursor: 'pointer', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          Pending Actions
+          {totalPendingCount > 0 && <span style={{ background: 'var(--accent)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '700' }}>{totalPendingCount}</span>}
+        </button>
+        <button 
+          className={`tab ${activeTab === 'history' ? 'active' : ''}`}
+          onClick={() => setActiveTab('history')}
+          style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'history' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'history' ? 'var(--accent)' : 'var(--text-muted)', fontWeight: activeTab === 'history' ? '600' : '400', cursor: 'pointer', fontSize: '0.95rem' }}
+        >
+          Confirmed & History
+        </button>
       </div>
 
       {loading ? (
         <div className="page-loader"><div className="spinner"></div></div>
-      ) : incidents.length === 0 ? (
-        <div className="card" style={{ padding: '60px 24px', textAlign: 'center' }}>
-          <ClipboardCheck size={48} style={{ color: 'var(--accent)', marginBottom: 16 }} />
-          <h3 style={{ margin: '0 0 8px', color: 'var(--text-main)' }}>All Clear!</h3>
-          <p style={{ margin: 0, color: 'var(--text-muted)' }}>No pending incidents require your attention.</p>
-        </div>
-      ) : (
+      ) : activeTab === 'pending' ? (
+        totalPendingCount === 0 ? (
+          <div className="card" style={{ padding: '60px 24px', textAlign: 'center' }}>
+            <ClipboardCheck size={48} style={{ color: 'var(--accent)', marginBottom: 16 }} />
+            <h3 style={{ margin: '0 0 8px', color: 'var(--text-main)' }}>All Clear!</h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>No pending incidents require your attention.</p>
+          </div>
+        ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
           {/* ── SECTION 1: Needs Manager to Fill ─────────────────── */}
@@ -504,6 +552,52 @@ const ManagerDashboard = () => {
                   );
                 })}
               </div>
+            </div>
+          )}
+        </div>
+        )
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+          {historyIncidents.length === 0 ? (
+            <div className="card" style={{ padding: '60px 24px', textAlign: 'center' }}>
+              <Clock size={48} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
+              <h3 style={{ margin: '0 0 8px', color: 'var(--text-main)' }}>No History Yet</h3>
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>You haven't confirmed or resolved any incidents.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {historyIncidents.map(incident => {
+                const sev = severityColors[incident.severity] || severityColors.minor;
+                return (
+                  <div key={incident._id} className="card" style={{ padding: '20px 24px', borderLeft: `4px solid ${sev.color}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: 250 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>{incident.incidentId}</span>
+                          <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600, background: sev.bg, color: sev.color, border: `1px solid ${sev.border}` }}>
+                            {incident.severity?.toUpperCase()}
+                          </span>
+                          <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600, background: 'rgba(100,116,139,0.1)', color: '#64748b', border: '1px solid rgba(100,116,139,0.2)' }}>
+                            {incident.status?.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                        <p style={{ margin: '0 0 10px', color: 'var(--text-main)', fontSize: '1rem', lineHeight: 1.5 }}>
+                          {incident.description?.substring(0, 150)}{incident.description?.length > 150 ? '...' : ''}
+                        </p>
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><User size={14} /> {incident.injuredPerson?.name || 'Unknown'}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={14} /> {new Date(incident.dateTime || incident.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn btn-secondary" onClick={() => navigate(`/incidents/${incident._id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Eye size={16} /> View Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

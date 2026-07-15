@@ -260,8 +260,10 @@ exports.createSOSIncident = async (req, res, next) => {
 exports.getIncidents = async (req, res, next) => {
   try {
     const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
-    const { department, severity, status, incidentType, outcome, startDate, endDate, search, page = 1, limit = 20 } = req.query;
+    const { department, severity, status, incidentType, outcome, location, startDate, endDate, search, forwardedToDoctor, page = 1, limit = 20 } = req.query;
     const filter = { company: companyId };
+    
+    if (location) filter.location = location;
 
     // Managers can only see incidents for their own department
     if (req.user.role === 'manager' && req.user.department) {
@@ -273,6 +275,7 @@ exports.getIncidents = async (req, res, next) => {
     if (status) filter.status = status;
     if (outcome) filter.outcome = outcome;
     if (incidentType) filter.incidentType = incidentType;
+    if (forwardedToDoctor !== undefined) filter.forwardedToDoctor = forwardedToDoctor === 'true';
     if (startDate || endDate) { filter.dateTime = {}; if (startDate) filter.dateTime.$gte = new Date(startDate); if (endDate) filter.dateTime.$lte = new Date(endDate); }
     if (search) filter.$or = [{ incidentId: { $regex: search, $options: 'i' } }, { description: { $regex: search, $options: 'i' } }, { 'injuredPerson.name': { $regex: search, $options: 'i' } }];
 
@@ -354,25 +357,32 @@ exports.getIncidentStats = async (req, res, next) => {
       companyObjId = new mongoose.Types.ObjectId(idStr);
     }
 
+    const baseMatch = { company: companyObjId };
+    if (req.user.role === 'manager' && req.user.department) {
+      const deptIdStr = req.user.department._id ? req.user.department._id.toString() : req.user.department.toString();
+      baseMatch.department = new mongoose.Types.ObjectId(deptIdStr);
+    }
+
     const startDate = new Date(); startDate.setDate(startDate.getDate() - parseInt(req.query.period || '30'));
+    
     const [stats] = await Incident.aggregate([
-      { $match: { company: companyObjId, dateTime: { $gte: startDate } } },
+      { $match: { ...baseMatch, dateTime: { $gte: startDate } } },
       { $group: { _id: null, total: { $sum: 1 }, minor: { $sum: { $cond: [{ $eq: ['$severity', 'minor'] }, 1, 0] } }, moderate: { $sum: { $cond: [{ $eq: ['$severity', 'moderate'] }, 1, 0] } }, serious: { $sum: { $cond: [{ $eq: ['$severity', 'serious'] }, 1, 0] } }, fatal: { $sum: { $cond: [{ $eq: ['$severity', 'fatal'] }, 1, 0] } }, totalDaysLost: { $sum: '$daysLost' }, reportable: { $sum: { $cond: ['$isReportable', 1, 0] } }, openCases: { $sum: { $cond: [{ $in: ['$status', ['reported', 'under_investigation']] }, 1, 0] } } } }
     ]);
     const deptStats = await Incident.aggregate([
-      { $match: { company: companyObjId, dateTime: { $gte: startDate } } },
+      { $match: { ...baseMatch, dateTime: { $gte: startDate } } },
       { $group: { _id: '$department', count: { $sum: 1 }, serious: { $sum: { $cond: [{ $in: ['$severity', ['serious', 'fatal']] }, 1, 0] } } } },
       { $lookup: { from: 'departments', localField: '_id', foreignField: '_id', as: 'department' } },
       { $unwind: '$department' }, { $sort: { count: -1 } }
     ]);
     const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const monthlyTrend = await Incident.aggregate([
-      { $match: { company: companyObjId, dateTime: { $gte: sixMonthsAgo } } },
+      { $match: { ...baseMatch, dateTime: { $gte: sixMonthsAgo } } },
       { $group: { _id: { year: { $year: '$dateTime' }, month: { $month: '$dateTime' } }, count: { $sum: 1 }, serious: { $sum: { $cond: [{ $in: ['$severity', ['serious', 'fatal']] }, 1, 0] } } } },
       { $sort: { '_id.year': 1, '_id.month': 1 } }
     ]);
     const typeBreakdown = await Incident.aggregate([
-      { $match: { company: companyObjId, dateTime: { $gte: startDate } } },
+      { $match: { ...baseMatch, dateTime: { $gte: startDate } } },
       { $group: { _id: '$incidentType', count: { $sum: 1 } } }
     ]);
     res.json({ success: true, data: { summary: stats || { total: 0, minor: 0, moderate: 0, serious: 0, fatal: 0, totalDaysLost: 0, reportable: 0, openCases: 0 }, departmentStats: deptStats, monthlyTrend, typeBreakdown } });

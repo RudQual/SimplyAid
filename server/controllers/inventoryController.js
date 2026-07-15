@@ -12,9 +12,10 @@ exports.createBox = async (req, res, next) => {
 exports.getBoxes = async (req, res, next) => {
   try {
     const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
-    const { department, status } = req.query;
+    const { department, status, location } = req.query;
     const filter = { company: companyId, isActive: true };
     if (department) filter.department = department;
+    if (location) filter.location = location;
     if (status) filter.status = status;
     const boxes = await FirstAidBox.find(filter)
       .populate('department', 'name code')

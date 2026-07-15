@@ -119,13 +119,10 @@ const QrScan = () => {
     }
   };
 
-  // When scan result arrives, show the action choice modal for self-scans
+  // When scan result arrives, show the action choice modal for all scans
   useEffect(() => {
     if (scanResult && user) {
-      const isSelfScan = scanResult._id === user._id || scanResult.employeeId === user.employeeId;
-      if (isSelfScan) {
-        setShowChoiceModal(true);
-      }
+      setShowChoiceModal(true);
     }
   }, [scanResult]);
 
@@ -375,12 +372,6 @@ const QrScan = () => {
             <button className="btn btn-primary btn-large btn-full" onClick={resetScanner}>
               <RefreshCw size={20} /> Scan Another
             </button>
-
-            {scanResult && !isSelfScan && (
-              <button className="btn btn-primary btn-large btn-full" onClick={() => navigate('/incidents/new', { state: { scannedUser: scanResult } })} style={{ marginTop: 12 }}>
-                <FileText size={20} /> File Full Incident Report
-              </button>
-            )}
           </div>
         )}
       </div>

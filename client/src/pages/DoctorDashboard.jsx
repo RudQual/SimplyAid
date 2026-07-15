@@ -31,7 +31,7 @@ const DoctorDashboard = () => {
     try {
       // Get incidents forwarded by manager (under_investigation = manager confirmed)
       const [pendingRes, statsRes] = await Promise.all([
-        getIncidents({ status: 'under_investigation', limit: 50 }),
+        getIncidents({ forwardedToDoctor: true, status: 'under_investigation', limit: 50 }),
         getIncidentStats({ period: 30 })
       ]);
       setPendingIncidents(pendingRes.data.data);

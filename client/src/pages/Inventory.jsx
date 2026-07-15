@@ -1,19 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useScanner } from '../contexts/ScannerContext';
 import { getBoxes, inspectBox } from '../services/api';
-import { Package, MapPin, User, Calendar, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Package, MapPin, User, Calendar, CheckCircle, AlertTriangle, XCircle, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const statusIcon = { adequate: <CheckCircle size={16} />, needs_replenishment: <AlertTriangle size={16} />, overdue_inspection: <XCircle size={16} /> };
 
 const Inventory = () => {
   const { t, requireAuth } = useAuth();
+  const { selectedScanner } = useScanner();
   const [boxes, setBoxes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
 
-  useEffect(() => { loadBoxes(); }, []);
-  const loadBoxes = async () => { try { const r = await getBoxes({}); setBoxes(r.data.data); } catch(e){} finally { setLoading(false); } };
+  useEffect(() => { loadBoxes(); }, [selectedScanner]);
+  const loadBoxes = async () => { 
+    setLoading(true);
+    try { 
+      let query = {};
+      if (selectedScanner) {
+        if (selectedScanner.department) query.department = typeof selectedScanner.department === 'string' ? selectedScanner.department : selectedScanner.department._id;
+        if (selectedScanner.location) query.location = selectedScanner.location;
+      }
+      const r = await getBoxes(query); 
+      setBoxes(r.data.data); 
+    } catch(e){} 
+    finally { setLoading(false); } 
+  };
 
   const handleInspect = async (boxId) => {
     requireAuth(async () => {
@@ -29,6 +43,15 @@ const Inventory = () => {
       <div className="page-header">
         <div><h1 className="page-title">{t('inventory.title')}</h1><p className="page-subtitle">Manage first aid boxes per Factories Act Section 45</p></div>
       </div>
+
+      {selectedScanner && (
+        <div style={{ marginBottom: 24, padding: '12px 16px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Filter size={18} color="#6366f1" />
+          <span style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+            Filtered by active scanner: <strong>{selectedScanner.location}</strong>
+          </span>
+        </div>
+      )}
 
       <div className="grid-3">
         {boxes.map(box => (
