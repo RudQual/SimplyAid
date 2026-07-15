@@ -1,6 +1,6 @@
 /* ============================================
    SimplyAID — Login / Sign-Up Page Styles
-   Premium glassmorphism design with social auth
+   Premium glassmorphism design with demo panel
    ============================================ */
 
 /* --- Page Layout --- */
@@ -75,13 +75,23 @@
   }
 }
 
-/* --- Container & Card --- */
-.login-container {
+/* --- Side-by-Side Layout --- */
+.login-layout {
   position: relative;
   z-index: 1;
-  width: 100%;
-  max-width: 440px;
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
   padding: 20px;
+  max-width: 920px;
+  width: 100%;
+}
+
+/* --- Container & Card --- */
+.login-container {
+  flex: 1;
+  min-width: 0;
+  max-width: 440px;
 }
 
 .login-card {
@@ -180,7 +190,7 @@
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: var(--radius-sm);
-  color: #fca5a5;
+  color: #dc2626;
   font-size: 0.85rem;
   margin-bottom: 20px;
   animation: shakeX 0.4s ease;
@@ -379,14 +389,300 @@
   color: var(--text-muted);
 }
 
-/* --- Responsive --- */
-@media (max-width: 480px) {
+
+/* ===================================================
+   DEMO QUICK ACCESS PANEL
+   =================================================== */
+
+.demo-panel {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+  animation: slideUp 0.5s ease 0.1s both;
+}
+
+.demo-panel-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  padding: 28px 24px;
+  transition: all 0.3s ease;
+}
+
+/* --- Panel Header --- */
+.demo-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.demo-panel-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.demo-panel-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+}
+
+.demo-panel-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* --- Role Groups --- */
+.demo-panel-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.demo-group {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  transition: all 0.3s ease;
+}
+
+.demo-group:hover {
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+/* --- Group Header (Accordion) --- */
+.demo-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(248, 250, 252, 0.6);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.demo-group-header:hover {
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.demo-group-header.expanded {
+  background: rgba(248, 250, 252, 0.95);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.demo-group-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.demo-group-icon-wrap {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.demo-group-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.demo-group-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.demo-chevron {
+  color: var(--text-muted);
+  transition: transform 0.25s ease;
+}
+
+.demo-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+/* --- Group Account List (Accordion body) --- */
+.demo-group-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s ease;
+  opacity: 0;
+}
+
+.demo-group-list.expanded {
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* --- Account Buttons --- */
+.demo-account-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.demo-account-btn:last-child {
+  border-bottom: none;
+}
+
+.demo-account-btn:hover {
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.demo-account-btn:hover .demo-account-arrow {
+  transform: translateX(3px);
+  opacity: 1;
+}
+
+.demo-account-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.demo-account-btn.loading {
+  opacity: 0.7;
+}
+
+.demo-account-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.demo-account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.demo-account-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.demo-head-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.demo-account-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-account-arrow {
+  color: var(--text-muted);
+  opacity: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+/* --- Panel Footer --- */
+.demo-panel-footer {
+  margin-top: 18px;
+  text-align: center;
+}
+
+.demo-panel-footer p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.demo-panel-footer code {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+
+/* ===================================================
+   RESPONSIVE
+   =================================================== */
+
+@media (max-width: 820px) {
+  .login-layout {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
   .login-container {
+    max-width: 440px;
+    width: 100%;
+  }
+
+  .demo-panel {
+    max-width: 440px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-layout {
     padding: 12px;
   }
 
   .login-card {
     padding: 28px 20px;
+    border-radius: 16px;
+  }
+
+  .demo-panel-card {
+    padding: 20px 16px;
     border-radius: 16px;
   }
 }
