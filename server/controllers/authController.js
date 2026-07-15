@@ -132,7 +132,7 @@ exports.signup = async (req, res, next) => {
       name,
       email,
       password,
-      role: ['doctor', 'manager', 'user'].includes(role) ? role : 'user',
+      role: ['doctor', 'manager', 'employee'].includes(role) ? role : 'employee',
       company: defaultCompany,
       employeeId: employeeId || autoEmpId
     });
@@ -265,6 +265,78 @@ exports.changePassword = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Password updated successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Quick login for demo (no password required)
+// @route   POST /api/auth/quick-login
+// @access  Public (development/demo only)
+exports.quickLogin = async (req, res, next) => {
+  try {
+    // Block in production
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        success: false,
+        message: 'Quick login is disabled in production'
+      });
+    }
+
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide an email'
+      });
+    }
+
+    const user = await User.findOne({ email })
+      .populate('company', 'name code')
+      .populate('department', 'name code');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email'
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is deactivated'
+      });
+    }
+
+    sendAuthResponse(res, user);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all demo accounts for quick-access panel
+// @route   GET /api/auth/demo-accounts
+// @access  Public (development/demo only)
+exports.getDemoAccounts = async (req, res, next) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo accounts endpoint is disabled in production'
+      });
+    }
+
+    const users = await User.find({ isActive: true })
+      .select('name email role designation department employeeId')
+      .populate('department', 'name code')
+      .sort({ role: 1, name: 1 });
+
+    res.json({
+      success: true,
+      data: users
     });
   } catch (error) {
     next(error);
