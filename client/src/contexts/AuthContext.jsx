@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loginUser as loginAPI, signupUser as signupAPI, getMe } from '../services/api';
+import { loginUser as loginAPI, signupUser as signupAPI, quickLoginUser as quickLoginAPI, getMe } from '../services/api';
 import translations from '../utils/translations';
 
 const AuthContext = createContext(null);
@@ -48,6 +48,20 @@ export const AuthProvider = ({ children }) => {
     return handleAuthResponse(res);
   };
 
+  const quickLoginByEmail = async (email) => {
+    const res = await quickLoginAPI({ email });
+    return handleAuthResponse(res);
+  };
+
+  // Returns the correct redirect path based on user role
+  const getRoleRedirect = (role) => {
+    switch (role) {
+      case 'doctor': return '/doctor-dashboard';
+      case 'manager': return '/manager-dashboard';
+      default: return '/';
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('simplyaid_token');
     localStorage.removeItem('simplyaid_user');
@@ -85,7 +99,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser, hasRole, t, lang, switchLang, isGuest, requireAuth, showAuthModal, setShowAuthModal }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, quickLoginByEmail, getRoleRedirect, logout, refreshUser, hasRole, t, lang, switchLang, isGuest, requireAuth, showAuthModal, setShowAuthModal }}>
       {children}
     </AuthContext.Provider>
   );

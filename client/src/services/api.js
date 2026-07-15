@@ -26,6 +26,8 @@ export const getMe = () => API.get('/auth/me');
 export const registerUser = (data) => API.post('/auth/register', data);
 export const signupUser = (data) => API.post('/auth/signup', data);
 export const changePassword = (data) => API.put('/auth/change-password', data);
+export const quickLoginUser = (data) => API.post('/auth/quick-login', data);
+export const getDemoAccountsList = () => API.get('/auth/demo-accounts');
 
 // Users
 export const getUsers = (params) => API.get('/users', { params });
