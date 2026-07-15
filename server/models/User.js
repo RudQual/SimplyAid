@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['doctor', 'manager', 'user', 'employee', 'admin', 'supervisor', 'safety_officer', 'first_aider', 'worker'],
-    default: 'user'
+    default: 'employee'
   },
   profileCompleted: {
     type: Boolean,
