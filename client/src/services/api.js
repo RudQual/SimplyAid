@@ -52,6 +52,7 @@ export const getIncident = (id) => API.get(`/incidents/${id}`);
 export const createIncident = (data) => API.post('/incidents', data);
 export const updateIncident = (id, data) => API.put(`/incidents/${id}`, data);
 export const getIncidentStats = (params) => API.get('/incidents/stats/summary', { params });
+export const triggerSOS = () => API.post('/incidents/sos');
 
 // Inventory & Boxes
 export const getBoxes = (params) => API.get('/inventory/boxes', { params });

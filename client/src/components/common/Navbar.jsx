@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useScanner } from '../../contexts/ScannerContext';
-import { getNotifications, markAllRead, markNotificationRead } from '../../services/api';
+import { getNotifications, markAllRead, markNotificationRead, triggerSOS } from '../../services/api';
 import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye, AlertTriangle, Radio, ChevronDown, MapPin, Building2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -15,6 +16,7 @@ const Navbar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
   const [showLang, setShowLang] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [sosLoading, setSosLoading] = useState(false);
 
   const notifDropdownRef = useRef(null);
   const langDropdownRef = useRef(null);
@@ -63,13 +65,34 @@ const Navbar = () => {
     }
     setNotifications(prev => prev.filter(n => n._id !== notif._id));
     setShowNotifs(false);
-    // Navigate to the related resource
     if (notif.relatedModel === 'Incident' && notif.relatedId) {
       navigate(`/incidents/${notif.relatedId}`);
     } else if (notif.relatedModel === 'FirstAidBox' && notif.relatedId) {
       navigate(`/inventory/boxes/scan/${notif.relatedId}`);
     } else if (notif.relatedModel === 'User' && notif.relatedId) {
       navigate(`/employees/${notif.relatedId}`);
+    }
+  };
+
+  // ── SOS Emergency Handler ──
+  const handleSOS = async () => {
+    const confirmed = window.confirm(
+      '🆘 EMERGENCY SOS\n\nThis will immediately:\n• Create an emergency incident report\n• Notify your manager and all doctors\n\nAre you sure you want to trigger SOS?'
+    );
+    if (!confirmed) return;
+
+    setSosLoading(true);
+    try {
+      const res = await triggerSOS();
+      const { data, message } = res.data;
+      toast.success(message || 'SOS sent! Your manager has been notified.', { duration: 5000, icon: '🆘' });
+      if (data?._id) {
+        navigate(`/incidents/${data._id}`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send SOS. Please try again.');
+    } finally {
+      setSosLoading(false);
     }
   };
 
@@ -109,7 +132,6 @@ const Navbar = () => {
         </div>
 
         {isGuest ? (
-          /* Guest: show Sign In / Sign Up buttons */
           <div className="navbar-guest-actions">
             <button className="navbar-signin-btn" onClick={() => navigate('/login')} id="navbar-signin-btn">
               <LogIn size={16} /> {t('guest.signInBtn')}
@@ -120,7 +142,7 @@ const Navbar = () => {
           </div>
         ) : (
           <>
-            {/* Scanner Selector — Global */}
+            {/* Scanner Selector */}
             <div className="navbar-dropdown" ref={scannerDropdownRef}>
               <button
                 className={`scanner-selector-btn ${selectedScanner ? 'has-scanner' : 'no-scanner'}`}
@@ -177,9 +199,13 @@ const Navbar = () => {
               )}
             </div>
 
-            {/* SOS Button */}
-            <button className="sos-btn" onClick={() => navigate('/incidents/new?type=emergency')}>
-              <AlertTriangle size={18} />
+            {/* SOS Button — directly triggers emergency report */}
+            <button className={`sos-btn ${sosLoading ? 'sos-loading' : ''}`} onClick={handleSOS} disabled={sosLoading}>
+              {sosLoading ? (
+                <span className="spinner" style={{width:16,height:16,borderWidth:2}}></span>
+              ) : (
+                <AlertTriangle size={18} />
+              )}
               <span>SOS</span>
             </button>
 

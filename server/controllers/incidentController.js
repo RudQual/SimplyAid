@@ -102,6 +102,161 @@ exports.createIncident = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @desc    SOS Emergency — instant empty report sent to immediate manager
+// @route   POST /api/incidents/sos
+// @access  Private (any authenticated user)
+exports.createSOSIncident = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate('company', 'name code')
+      .populate('department', 'name code');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const companyId = user.company?._id || user.company;
+    const departmentId = user.department?._id || user.department;
+
+    // Find the user's immediate manager:
+    // 1. First try to match by the user's reportingManager name field
+    // 2. Then try managers in the same department
+    // 3. Fallback to any manager in the company
+    let immediateManager = null;
+
+    if (user.reportingManager) {
+      immediateManager = await User.findOne({
+        company: companyId,
+        role: 'manager',
+        name: user.reportingManager,
+        isActive: true
+      });
+    }
+
+    if (!immediateManager) {
+      immediateManager = await User.findOne({
+        company: companyId,
+        department: departmentId,
+        role: 'manager',
+        isActive: true
+      });
+    }
+
+    if (!immediateManager) {
+      immediateManager = await User.findOne({
+        company: companyId,
+        role: 'manager',
+        isActive: true
+      });
+    }
+
+    // Create the emergency incident with minimal auto-filled data
+    const incident = await Incident.create({
+      company: companyId,
+      reportedBy: user._id,
+      injuredPerson: {
+        name: user.name,
+        employeeId: user.employeeId,
+        department: departmentId,
+        gender: user.gender,
+        designation: user.designation
+      },
+      dateTime: new Date(),
+      location: user.factoryLocation || 'Unknown — SOS triggered',
+      department: departmentId,
+      incidentType: 'injury',
+      severity: 'serious',
+      description: `🚨 SOS EMERGENCY triggered by ${user.name} (${user.employeeId || 'N/A'}). Immediate assistance required. Details pending.`,
+      outcome: 'pending_confirmation',
+      status: 'reported',
+      reportMode: 'self_reported',
+      pendingManagerAssist: true
+    });
+
+    incident.statusHistory.push({
+      status: 'reported',
+      changedBy: user._id,
+      notes: 'SOS Emergency — auto-generated. Employee needs immediate help.'
+    });
+    await incident.save();
+
+    // Send high-priority notification to the immediate manager
+    const notifications = [];
+
+    if (immediateManager) {
+      notifications.push({
+        recipient: immediateManager._id,
+        company: companyId,
+        type: 'report_pending',
+        title: `🆘 SOS EMERGENCY from ${user.name}!`,
+        titleHi: `🆘 ${user.name} से आपातकालीन SOS!`,
+        message: `${user.name} (${user.employeeId || 'N/A'}) — ${user.designation || 'Employee'} in ${user.department?.name || 'Unknown Dept'} has triggered an SOS emergency at ${user.factoryLocation || 'unknown location'}. Report ${incident.incidentId} created. Go to them immediately!`,
+        messageHi: `${user.name} (${user.employeeId || 'N/A'}) ने ${user.factoryLocation || 'अज्ञात स्थान'} पर आपातकालीन SOS दबाया है। रिपोर्ट ${incident.incidentId}। तुरंत जाएं!`,
+        severity: 'critical',
+        priority: 'high',
+        category: 'incident',
+        relatedModel: 'Incident',
+        relatedId: incident._id
+      });
+    }
+
+    // Also notify all other managers in the department for awareness
+    const otherManagers = await User.find({
+      company: companyId,
+      role: 'manager',
+      isActive: true,
+      _id: { $ne: immediateManager?._id }
+    });
+
+    otherManagers.forEach(mgr => {
+      notifications.push({
+        recipient: mgr._id,
+        company: companyId,
+        type: 'incident_alert',
+        title: `🆘 SOS: ${user.name} needs emergency help`,
+        titleHi: `🆘 SOS: ${user.name} को आपातकालीन सहायता चाहिए`,
+        message: `Emergency incident ${incident.incidentId} auto-created. ${user.name} (${user.designation || 'Employee'}) at ${user.factoryLocation || 'unknown'}.`,
+        severity: 'critical',
+        relatedModel: 'Incident',
+        relatedId: incident._id
+      });
+    });
+
+    // Notify doctors too
+    const doctors = await User.find({
+      company: companyId,
+      role: 'doctor',
+      isActive: true
+    });
+
+    doctors.forEach(doc => {
+      notifications.push({
+        recipient: doc._id,
+        company: companyId,
+        type: 'incident_alert',
+        title: `🆘 SOS: Medical emergency — ${user.name}`,
+        titleHi: `🆘 SOS: चिकित्सा आपातकाल — ${user.name}`,
+        message: `${user.name} (${user.employeeId || 'N/A'}) triggered SOS at ${user.factoryLocation || 'unknown'}. Incident ${incident.incidentId}. Possible injury — prepare for medical response.`,
+        severity: 'critical',
+        relatedModel: 'Incident',
+        relatedId: incident._id
+      });
+    });
+
+    if (notifications.length) await Notification.insertMany(notifications);
+
+    const populated = await Incident.findById(incident._id)
+      .populate('reportedBy', 'name employeeId')
+      .populate('department', 'name');
+
+    res.status(201).json({
+      success: true,
+      data: populated,
+      message: `SOS sent! ${immediateManager ? `${immediateManager.name} has been notified.` : 'All managers have been notified.'}`
+    });
+  } catch (error) { next(error); }
+};
+
 exports.getIncidents = async (req, res, next) => {
   try {
     const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;

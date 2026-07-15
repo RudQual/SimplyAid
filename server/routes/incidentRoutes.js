@@ -1,9 +1,10 @@
 const router = require('express').Router();
-const { createIncident, getIncidents, getIncident, updateIncident, getIncidentStats, managerConfirm, doctorReview, managerFillIncident } = require('../controllers/incidentController');
+const { createIncident, createSOSIncident, getIncidents, getIncident, updateIncident, getIncidentStats, managerConfirm, doctorReview, managerFillIncident } = require('../controllers/incidentController');
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
 router.get('/stats/summary', getIncidentStats);
+router.post('/sos', createSOSIncident);
 router.route('/').get(getIncidents).post(createIncident);
 router.route('/:id').get(getIncident).put(authorize('manager', 'doctor'), updateIncident);
 router.put('/:id/manager-confirm', authorize('manager'), managerConfirm);
