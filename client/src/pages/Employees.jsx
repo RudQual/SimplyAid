@@ -131,7 +131,7 @@ const Employees = () => {
                 <div className="form-group"><label className="form-label">Phone</label><input value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label className="form-label">Role</label><select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}><option value="user">User</option><option value="manager">Manager</option><option value="doctor">Doctor</option></select></div>
+                <div className="form-group"><label className="form-label">Role</label><select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}><option value="employee">Employee</option><option value="manager">Manager</option><option value="doctor">Doctor</option></select></div>
                 <div className="form-group"><label className="form-label">Department</label><select value={form.department} onChange={e => setForm(f => ({...f, department: e.target.value}))}><option value="">Select</option>{depts.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select></div>
               </div>
               <div className="form-row">

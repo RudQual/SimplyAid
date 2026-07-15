@@ -16,7 +16,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     // Manager top priorities
     { path: '/manager-dashboard', icon: ClipboardCheck, label: 'Confirmations', roles: ['manager'] },
     { path: '/qr-scan', icon: ScanLine, label: 'QR Scanner', roles: null },
-    { path: '/incidents/new', icon: FileText, label: 'Report Incident', roles: ['user', 'manager'] },
+    { path: '/incidents/new', icon: FileText, label: 'Report Incident', roles: ['employee', 'manager'] },
     { path: '/incidents', icon: AlertTriangle, label: t('nav.incidents'), roles: null },
     { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['manager'] },
     { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['doctor', 'manager'] },

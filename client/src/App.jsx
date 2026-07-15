@@ -58,6 +58,15 @@ const ProtectedRoute = ({ children, roles }) => {
   return children;
 };
 
+// Redirects logged-in managers/doctors to their specific dashboards from '/'
+const RoleRedirectHome = () => {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
+  if (user?.role === 'manager') return <Navigate to="/manager-dashboard" replace />;
+  if (user?.role === 'doctor') return <Navigate to="/doctor-dashboard" replace />;
+  return <Dashboard />;
+};
+
 const AppLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -66,7 +75,7 @@ const AppLayout = () => {
       <Navbar />
       <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
         <Routes>
-          <Route path="/" element={<GuestableRoute><Dashboard /></GuestableRoute>} />
+          <Route path="/" element={<RoleRedirectHome />} />
           <Route path="/incidents" element={<GuestableRoute><Incidents /></GuestableRoute>} />
           <Route path="/incidents/new" element={<ProtectedRoute><NewIncident /></ProtectedRoute>} />
           <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
