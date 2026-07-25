@@ -415,20 +415,58 @@ const seedDB = async () => {
     console.log('📦 Inventory items created (20 prescribed items)');
 
     // ── 5. Create First Aid Boxes ──
-    const classType = 'B';
-    const boxItems = items.map(item => ({
+    // Helper to create items array for a given class type
+    const makeBoxItems = (cls) => items.map(item => ({
       item: item._id,
-      currentQty: item.requiredQty[`class${classType}`],
-      requiredQty: item.requiredQty[`class${classType}`]
+      currentQty: item.requiredQty[`class${cls}`],
+      requiredQty: item.requiredQty[`class${cls}`]
     }));
 
+    const boxItemsA = makeBoxItems('A');
+    const boxItemsB = makeBoxItems('B');
+    const boxItemsC = makeBoxItems('C');
+
+    const d30 = new Date(Date.now() + 30*24*60*60*1000);
+    const now = new Date();
+
     await FirstAidBox.insertMany([
-      { boxId: 'FAB-PROD-001', company: company._id, department: dept('PROD')._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType, inCharge: findUser('Anita Sharma')._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
-      { boxId: 'FAB-MAINT-001', company: company._id, department: dept('MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType, inCharge: findUser('Arvind Mishra')._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
-      { boxId: 'FAB-ADMIN-001', company: company._id, department: dept('ADMIN')._id, location: 'Main Office - Reception Area', floor: '1st', classType: 'A', inCharge: findUser('Kavita Nair')._id, items: items.map(item => ({ item: item._id, currentQty: item.requiredQty.classA, requiredQty: item.requiredQty.classA })), lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' },
-      { boxId: 'FAB-LOG-001', company: company._id, department: dept('LOG')._id, location: 'Warehouse - Loading Dock', floor: 'Ground', classType, inCharge: findUser('Prakash Gaikwad')._id, items: boxItems, lastInspectionDate: new Date(), nextInspectionDue: new Date(Date.now() + 30*24*60*60*1000), status: 'adequate' }
+      // ── PRODUCTION (3 boxes — high risk, more boxes) ──
+      { boxId: 'FAB-PROD-001', company: company._id, department: dept('PROD')._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType: 'B', inCharge: findUser('Anita Sharma')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-PROD-002', company: company._id, department: dept('PROD')._id, location: 'Welding Bay - West Wall', floor: '1st Floor', classType: 'B', inCharge: findUser('Ravi Kumar')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-PROD-003', company: company._id, department: dept('PROD')._id, location: 'CNC Machine Room - Near Fire Exit', floor: 'Ground', classType: 'C', inCharge: findUser('Ramesh Patil')._id, items: boxItemsC, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+
+      // ── MAINTENANCE (3 boxes — high risk) ──
+      { boxId: 'FAB-MAINT-001', company: company._id, department: dept('MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType: 'B', inCharge: findUser('Arvind Mishra')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-MAINT-002', company: company._id, department: dept('MAINT')._id, location: 'Electrical Panel Room', floor: '1st Floor', classType: 'B', inCharge: findUser('Sunil Yadav')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-MAINT-003', company: company._id, department: dept('MAINT')._id, location: 'HVAC Control Room', floor: 'Basement', classType: 'A', inCharge: findUser('Dinesh Sawant')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+
+      // ── QUALITY CONTROL (2 boxes) ──
+      { boxId: 'FAB-QC-001', company: company._id, department: dept('QC')._id, location: 'QC Lab - Main Testing Area', floor: '2nd Floor', classType: 'B', inCharge: findUser('Sunita Kadam')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-QC-002', company: company._id, department: dept('QC')._id, location: 'Sample Storage Room', floor: '2nd Floor', classType: 'A', inCharge: findUser('Ajay Chavan')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+
+      // ── STORES & WAREHOUSE (3 boxes — lots of physical work) ──
+      { boxId: 'FAB-STORE-001', company: company._id, department: dept('STORE')._id, location: 'Main Store - Aisle 1 Entrance', floor: 'Ground', classType: 'B', inCharge: findUser('Ashok Jadhav')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-STORE-002', company: company._id, department: dept('STORE')._id, location: 'Chemical Storage Area', floor: 'Ground', classType: 'C', inCharge: findUser('Seema Patil')._id, items: boxItemsC, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-STORE-003', company: company._id, department: dept('STORE')._id, location: 'Packing & Dispatch Zone', floor: 'Ground', classType: 'B', inCharge: findUser('Ashok Jadhav')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+
+      // ── ADMINISTRATION (2 boxes — low risk) ──
+      { boxId: 'FAB-ADMIN-001', company: company._id, department: dept('ADMIN')._id, location: 'Main Office - Reception Area', floor: '1st Floor', classType: 'A', inCharge: findUser('Sneha Deshpande')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-ADMIN-002', company: company._id, department: dept('ADMIN')._id, location: 'Conference Hall - Near Exit', floor: '2nd Floor', classType: 'A', inCharge: findUser('Rohit Shinde')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+
+      // ── SAFETY & EHS (2 boxes) ──
+      { boxId: 'FAB-SAFETY-001', company: company._id, department: dept('SAFETY')._id, location: 'Safety Office - Main Desk', floor: 'Ground', classType: 'B', inCharge: findUser('Kavita Nair')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-SAFETY-002', company: company._id, department: dept('SAFETY')._id, location: 'Fire Assembly Point - North Gate', floor: 'Ground', classType: 'C', inCharge: findUser('Nitin Pawar')._id, items: boxItemsC, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+
+      // ── HUMAN RESOURCES (2 boxes — low risk) ──
+      { boxId: 'FAB-HR-001', company: company._id, department: dept('HR')._id, location: 'HR Office - Interview Room', floor: '1st Floor', classType: 'A', inCharge: findUser('Pooja Mehta')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-HR-002', company: company._id, department: dept('HR')._id, location: 'Training Hall', floor: '2nd Floor', classType: 'A', inCharge: findUser('Amit Thakur')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+
+      // ── LOGISTICS (3 boxes — medium risk, heavy lifting) ──
+      { boxId: 'FAB-LOG-001', company: company._id, department: dept('LOG')._id, location: 'Warehouse - Loading Dock', floor: 'Ground', classType: 'B', inCharge: findUser('Prakash Gaikwad')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-LOG-002', company: company._id, department: dept('LOG')._id, location: 'Forklift Parking Bay', floor: 'Ground', classType: 'B', inCharge: findUser('Vishal Kale')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-LOG-003', company: company._id, department: dept('LOG')._id, location: 'Dispatch Office - Near Gate 2', floor: 'Ground', classType: 'A', inCharge: findUser('Rekha Mane')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' }
     ]);
-    console.log('🩹 First Aid Boxes created (4 boxes)');
+    console.log('🩹 First Aid Boxes created (22 boxes across 8 departments)');
 
     // ── Summary ──
     console.log('\n✅ Seed complete! All accounts created.');
