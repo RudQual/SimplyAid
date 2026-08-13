@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useScanner } from '../../contexts/ScannerContext';
 import { getNotifications, markAllRead, markNotificationRead, triggerSOS } from '../../services/api';
-import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye, AlertTriangle, Radio, ChevronDown, MapPin, Building2 } from 'lucide-react';
+import { Bell, LogOut, Globe, X, Check, LogIn, UserPlus, Eye, AlertTriangle, Radio, ChevronDown, MapPin, Building2, ScanLine, Wand2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './Navbar.css';
 
@@ -198,6 +198,24 @@ const Navbar = () => {
                 </div>
               )}
             </div>
+
+            {/* Autofill Demo Button */}
+            <button 
+              className="navbar-icon-btn" 
+              onClick={() => {
+                navigate('/incidents/new');
+                setTimeout(() => window.dispatchEvent(new Event('autofill-incident')), 100);
+              }} 
+              title="Autofill Demo Incident" 
+              style={{ color: '#8b5cf6', background: 'rgba(139, 92, 246, 0.1)' }}
+            >
+              <Wand2 size={18} />
+            </button>
+
+            {/* QR Scanner Button */}
+            <button className="navbar-icon-btn" onClick={() => navigate('/qr-scan')} title="QR Scanner" style={{ color: 'var(--accent)', background: 'var(--accent-light)' }}>
+              <ScanLine size={18} />
+            </button>
 
             {/* SOS Button — directly triggers emergency report */}
             <button className={`sos-btn ${sosLoading ? 'sos-loading' : ''}`} onClick={handleSOS} disabled={sosLoading}>

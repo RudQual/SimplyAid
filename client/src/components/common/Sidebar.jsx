@@ -7,15 +7,19 @@ const Sidebar = ({ collapsed, onToggle }) => {
   const { user, hasRole, isGuest, requireAuth, t } = useAuth();
   const navigate = useNavigate();
 
+  const getDashboardPath = () => {
+    if (user?.role === 'manager') return '/manager-dashboard';
+    if (user?.role === 'doctor') return '/doctor-dashboard';
+    return '/';
+  };
+
   // Role-based menu configuration
   // null roles = visible to everyone, specific roles = restricted
   const menuItems = [
     // Universal
-    { path: '/', icon: LayoutDashboard, label: t('nav.dashboard'), roles: null },
+    { path: getDashboardPath(), icon: LayoutDashboard, label: t('nav.dashboard'), roles: null },
 
     // Manager top priorities
-    { path: '/manager-dashboard', icon: ClipboardCheck, label: 'Confirmations', roles: ['manager'] },
-    { path: '/qr-scan', icon: ScanLine, label: 'QR Scanner', roles: null },
     { path: '/incidents/new', icon: FileText, label: 'Report Incident', roles: ['employee', 'manager'] },
     { path: '/incidents', icon: AlertTriangle, label: t('nav.incidents'), roles: null },
     { path: '/employees', icon: Users, label: t('nav.employees'), roles: ['manager', 'doctor'] },
@@ -23,12 +27,8 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['manager', 'doctor'] },
 
     // Doctor-specific
-    { path: '/doctor-dashboard', icon: Stethoscope, label: 'Doctor Dashboard', roles: ['doctor'] },
     { path: '/treatments', icon: Stethoscope, label: t('nav.treatments'), roles: ['doctor'] },
-    { path: '/inventory', icon: Package, label: t('nav.inventory'), roles: ['doctor'] },
     { path: '/expiry', icon: Clock, label: t('nav.expiry'), roles: ['doctor'] },
-    { path: '/compliance', icon: ShieldCheck, label: t('nav.compliance'), roles: ['doctor'] },
-    { path: '/analytics', icon: Activity, label: t('nav.analytics'), roles: ['doctor'] },
     { path: '/ai-assistant', icon: Bot, label: 'AI Assistant', roles: ['doctor'] },
     { path: '/departments', icon: Building2, label: t('nav.departments'), roles: ['doctor'] },
     { path: '/settings', icon: Settings, label: t('nav.settings'), roles: ['doctor'] },

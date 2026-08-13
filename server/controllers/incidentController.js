@@ -438,6 +438,51 @@ exports.managerConfirm = async (req, res, next) => {
       }
     }
 
+    // Deduct from First Aid Box if applicable (stocks-aware, FIFO by expiry)
+    if (incident.firstAidBoxUsed && incident.itemsUsed && incident.itemsUsed.length > 0) {
+      const FirstAidBox = require('../models/FirstAidBox');
+      const box = await FirstAidBox.findById(incident.firstAidBoxUsed);
+      if (box) {
+        let boxUpdated = false;
+        incident.itemsUsed.forEach(usage => {
+          const itemIndex = box.items.findIndex(i => i.item.toString() === usage.item.toString());
+          if (itemIndex > -1) {
+            const boxItem = box.items[itemIndex];
+            let remaining = usage.quantity;
+
+            if (boxItem.stocks && boxItem.stocks.length > 0) {
+              // Sort stocks by expiry date (soonest first = FIFO)
+              boxItem.stocks.sort((a, b) => {
+                if (!a.expiryDate) return 1;
+                if (!b.expiryDate) return -1;
+                return new Date(a.expiryDate) - new Date(b.expiryDate);
+              });
+
+              // Deduct from each stock in order
+              for (const stock of boxItem.stocks) {
+                if (remaining <= 0) break;
+                const deduct = Math.min(remaining, stock.quantity);
+                stock.quantity -= deduct;
+                remaining -= deduct;
+              }
+
+              // Remove depleted stocks (quantity = 0)
+              boxItem.stocks = boxItem.stocks.filter(s => s.quantity > 0);
+
+              // Update legacy currentQty to match total stocks
+              boxItem.currentQty = boxItem.stocks.reduce((sum, s) => sum + s.quantity, 0);
+            } else {
+              // Legacy: just deduct from currentQty
+              boxItem.currentQty -= usage.quantity;
+              if (boxItem.currentQty < 0) boxItem.currentQty = 0;
+            }
+            boxUpdated = true;
+          }
+        });
+        if (boxUpdated) await box.save();
+      }
+    }
+
     await incident.save();
 
     const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code').populate('managerConfirmation.confirmedBy', 'name');

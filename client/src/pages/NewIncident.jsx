@@ -1,14 +1,15 @@
+
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useScanner } from '../contexts/ScannerContext';
-import { createIncident, getDepartments, getUsers } from '../services/api';
-import { ArrowLeft, ArrowRight, Save, AlertTriangle, MapPin, Radio, Stethoscope, Briefcase, Clock } from 'lucide-react';
+import { createIncident, getDepartments, getUsers, getBoxes, getInventoryItems } from '../services/api';
+import { ArrowLeft, ArrowRight, Save, AlertTriangle, MapPin, Radio, Stethoscope, Briefcase, Clock, Plus, X, Box } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const STEPS = ['Injured Person', 'Incident Details', 'Outcome'];
+const STEPS = ['Injured Person', 'Incident Details', 'First Aid / Medicine', 'Outcome'];
 
-const BODY_PARTS = ['Head','Face','Eye','Neck','Shoulder','Arm','Hand','Finger','Chest','Back','Abdomen','Hip','Leg','Knee','Foot','Toe','Multiple'];
+const BODY_PARTS = ['Head', 'Face', 'Eye', 'Neck', 'Shoulder', 'Arm', 'Hand', 'Finger', 'Chest', 'Back', 'Abdomen', 'Hip', 'Leg', 'Knee', 'Foot', 'Toe', 'Multiple'];
 
 const INJURY_TYPES = [
   'Cut / Laceration',
@@ -32,13 +33,12 @@ const NewIncident = () => {
   const { t, user } = useAuth();
   const { selectedScanner } = useScanner();
   const navigate = useNavigate();
-  const location = useLocation();
   const [step, setStep] = useState(0);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     injuredPerson: { name: '', employeeId: '', department: '', age: '', gender: 'male', designation: '' },
-    dateTime: new Date().toISOString().slice(0,16),
+    dateTime: new Date().toISOString().slice(0, 16),
     location: '',
     department: '',
     severity: 'minor',
@@ -49,8 +49,16 @@ const NewIncident = () => {
     outcome: '',
     hospitalName: '',
     daysLost: 0,
-    witnesses: ''
+    witnesses: '',
+    usedFirstAid: false,
+    firstAidBoxUsed: '',
+    itemsUsed: []
   });
+
+  const [boxes, setBoxes] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [selectedItem, setSelectedItem] = useState('');
+  const [itemQty, setItemQty] = useState(1);
 
   // Auto-fill from scanner
   useEffect(() => {
@@ -64,33 +72,50 @@ const NewIncident = () => {
   }, [selectedScanner]);
 
   useEffect(() => {
-    getDepartments().then(d => {
-      setDepartments(d.data.data);
-    }).catch(console.error);
+    getDepartments().then(d => setDepartments(d.data.data)).catch(console.error);
+    getBoxes().then(b => setBoxes(b.data.data)).catch(console.error);
+    getInventoryItems().then(i => setInventoryItems(i.data.data)).catch(console.error);
   }, []);
 
-  // Pre-fill from QR Scan if state exists
+  // Autofill for presentation
   useEffect(() => {
-    if (location.state?.scannedUser) {
-      const u = location.state.scannedUser;
+    const handleAutofill = () => {
+      const defaultDept = departments.length > 0 ? departments[0]._id : '';
       setForm(f => ({
         ...f,
-        department: u.department?._id || u.department || f.department,
-        injuredPerson: {
-          ...f.injuredPerson,
-          name: u.name || '',
-          employeeId: u.employeeId || '',
-          department: u.department?._id || u.department || '',
-          designation: u.designation || ''
-        }
+        injuredPerson: { 
+          name: 'Rajesh Kumar', 
+          employeeId: 'EMP-9021', 
+          department: defaultDept, 
+          age: '34', 
+          gender: 'male', 
+          designation: 'Machine Operator' 
+        },
+        dateTime: new Date().toISOString().slice(0,16),
+        location: 'Assembly Line C, Sector 4',
+        department: defaultDept,
+        severity: 'serious',
+        description: 'While performing routine maintenance, Rajesh slipped on an unmarked oil spill near conveyor belt #3. He landed heavily on his right arm, sustaining a deep laceration and a suspected fracture.',
+        causeOfInjury: 'Slip and Fall due to unmarked oil spill',
+        bodyPartAffected: ['Arm', 'Hand'],
+        injuryTypes: [{ type: 'Fracture', severity: 'serious' }, { type: 'Cut / Laceration', severity: 'serious' }],
+        outcome: 'referred_to_doctor',
+        hospitalName: 'City Care Hospital',
+        daysLost: 14,
+        witnesses: 'Amit Patel (EMP-4051), Sunita Sharma (EMP-1120)'
       }));
-    }
-  }, [location.state]);
+      toast.success('Form magically autofilled! ✨');
+    };
+
+    window.addEventListener('autofill-incident', handleAutofill);
+    return () => window.removeEventListener('autofill-incident', handleAutofill);
+  }, [departments]);
+
 
   const set = (path, val) => {
     setForm(f => {
       const copy = { ...f };
-      if (path.includes('.')) { const [a,b] = path.split('.'); copy[a] = { ...copy[a], [b]: val }; }
+      if (path.includes('.')) { const [a, b] = path.split('.'); copy[a] = { ...copy[a], [b]: val }; }
       else copy[path] = val;
       return copy;
     });
@@ -98,6 +123,24 @@ const NewIncident = () => {
 
   const toggleBodyPart = (part) => {
     setForm(f => ({ ...f, bodyPartAffected: f.bodyPartAffected.includes(part) ? f.bodyPartAffected.filter(p => p !== part) : [...f.bodyPartAffected, part] }));
+  };
+
+  const addItem = () => {
+    if (!selectedItem || itemQty < 1) return;
+    const itemObj = inventoryItems.find(i => i._id === selectedItem);
+    setForm(f => ({
+      ...f,
+      itemsUsed: [...f.itemsUsed, { item: selectedItem, itemName: itemObj.name, quantity: parseInt(itemQty) }]
+    }));
+    setSelectedItem(''); setItemQty(1);
+  };
+
+  const removeItem = (idx) => {
+    setForm(f => {
+      const copy = [...f.itemsUsed];
+      copy.splice(idx, 1);
+      return { ...f, itemsUsed: copy };
+    });
   };
 
   const toggleInjuryType = (type) => {
@@ -124,7 +167,14 @@ const NewIncident = () => {
       };
       // Remove empty fields
       if (!data.hospitalName) delete data.hospitalName;
-      
+      if (!data.usedFirstAid) {
+        delete data.firstAidBoxUsed;
+        data.itemsUsed = [];
+      } else if (!data.firstAidBoxUsed) {
+        delete data.firstAidBoxUsed; // in case it was toggled but no box selected
+      }
+      delete data.usedFirstAid; // not needed in schema
+
       await createIncident(data);
       toast.success('Incident reported successfully!');
       navigate('/incidents');
@@ -135,6 +185,10 @@ const NewIncident = () => {
   const canNext = () => {
     if (step === 0) return form.injuredPerson.name && form.injuredPerson.department;
     if (step === 1) return form.description && (form.location || selectedScanner);
+    if (step === 2) {
+      if (form.usedFirstAid && !form.firstAidBoxUsed) return false;
+      return true;
+    }
     return form.outcome;
   };
 
@@ -150,32 +204,33 @@ const NewIncident = () => {
 
       {/* Scanner info bar */}
       {selectedScanner ? (
-        <div style={{marginBottom:16,padding:'12px 18px',background:'rgba(99, 102, 241, 0.06)',border:'1.5px solid rgba(99, 102, 241, 0.2)',borderRadius:10,display:'flex',alignItems:'center',gap:10,fontSize:'0.88rem',flexWrap:'wrap'}}>
+        <div style={{ marginBottom: 16, padding: '12px 18px', background: 'rgba(99, 102, 241, 0.06)', border: '1.5px solid rgba(99, 102, 241, 0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.88rem' }}>
           <Radio size={16} color="var(--blue-600)" />
-          <span style={{padding:'2px 8px',background:'rgba(99,102,241,0.12)',borderRadius:6,fontWeight:700,fontSize:'0.78rem',color:'var(--blue-600)',letterSpacing:'0.3px'}}>{selectedScanner.scannerId}</span>
-          <span style={{color:'var(--text-main)',fontWeight:600}}>{scannerName}</span>
-          <span style={{color:'var(--text-muted)'}}>·</span>
+          <span style={{ fontWeight: 600, color: 'var(--blue-600)' }}>Scanner:</span>
+          <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{scannerName}</span>
+          <span style={{ color: 'var(--text-muted)' }}>·</span>
           <MapPin size={14} color="var(--text-muted)" />
-          <span style={{color:'var(--text-secondary)'}}>{scannerLocation}</span>
-          {selectedScanner.floor && <><span style={{color:'var(--text-muted)'}}>·</span><span style={{color:'var(--text-muted)',fontSize:'0.82rem'}}>{selectedScanner.floor}</span></>}
+          <span style={{ color: 'var(--text-secondary)' }}>{scannerLocation}</span>
         </div>
       ) : (
-        <div style={{marginBottom:16,padding:'12px 18px',background:'rgba(245, 158, 11, 0.08)',border:'1.5px dashed rgba(245, 158, 11, 0.3)',borderRadius:10,display:'flex',alignItems:'center',gap:10,fontSize:'0.88rem',color:'#f59e0b'}}>
+        <div style={{ marginBottom: 16, padding: '12px 18px', background: 'rgba(245, 158, 11, 0.08)', border: '1.5px dashed rgba(245, 158, 11, 0.3)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.88rem', color: '#f59e0b' }}>
           <AlertTriangle size={16} />
-          <span style={{fontWeight:600}}>No scanner selected.</span>
-          <span style={{fontWeight:400}}>Select a scanner from the top bar to auto-fill location.</span>
+          <span style={{ fontWeight: 600 }}>No scanner selected.</span>
+          <span style={{ fontWeight: 400 }}>Select a scanner from the top bar to auto-fill location.</span>
         </div>
       )}
 
       {/* Step indicator */}
-      <div className="card" style={{marginBottom:24,padding:'16px 24px'}}>
-        <div style={{display:'flex',gap:8}}>
-          {STEPS.map((s,i) => (
-            <div key={i} style={{flex:1,display:'flex',alignItems:'center',gap:8}}>
-              <div style={{width:28,height:28,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.8rem',fontWeight:700,
-                background: i <= step ? 'var(--blue-600)' : 'var(--bg-app)', color: i <= step ? '#fff' : 'var(--text-muted)', flexShrink:0, border: i <= step ? 'none' : '1px solid var(--border-color)'}}>{i+1}</div>
-              <span style={{fontSize:'0.82rem',fontWeight:i===step?600:400,color:i===step?'var(--text-main)':'var(--text-muted)',whiteSpace:'nowrap'}}>{s}</span>
-              {i < STEPS.length-1 && <div style={{flex:1,height:2,background:i<step?'var(--blue-600)':'var(--border-color)',borderRadius:2}}></div>}
+      <div className="card" style={{ marginBottom: 24, padding: '16px 24px' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {STEPS.map((s, i) => (
+            <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700,
+                background: i <= step ? 'var(--blue-600)' : 'var(--bg-app)', color: i <= step ? '#fff' : 'var(--text-muted)', flexShrink: 0, border: i <= step ? 'none' : '1px solid var(--border-color)'
+              }}>{i + 1}</div>
+              <span style={{ fontSize: '0.82rem', fontWeight: i === step ? 600 : 400, color: i === step ? 'var(--text-main)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{s}</span>
+              {i < STEPS.length - 1 && <div style={{ flex: 1, height: 2, background: i < step ? 'var(--blue-600)' : 'var(--border-color)', borderRadius: 2 }}></div>}
             </div>
           ))}
         </div>
@@ -185,7 +240,7 @@ const NewIncident = () => {
         {/* Step 0: Injured Person */}
         {step === 0 && (
           <div>
-            <h3 style={{marginBottom:20,fontWeight:700}}>Injured Person Details</h3>
+            <h3 style={{ marginBottom: 20, fontWeight: 700 }}>Injured Person Details</h3>
             <div className="form-row">
               <div className="form-group"><label className="form-label">Full Name *</label><input value={form.injuredPerson.name} onChange={e => set('injuredPerson.name', e.target.value)} placeholder="Enter name" /></div>
               <div className="form-group"><label className="form-label">Employee ID</label><input value={form.injuredPerson.employeeId} onChange={e => set('injuredPerson.employeeId', e.target.value)} placeholder="EMP001" /></div>
@@ -202,13 +257,13 @@ const NewIncident = () => {
         {/* Step 1: Incident Details */}
         {step === 1 && (
           <div>
-            <h3 style={{marginBottom:20,fontWeight:700}}>Incident Details</h3>
+            <h3 style={{ marginBottom: 20, fontWeight: 700 }}>Incident Details</h3>
             <div className="form-row">
               <div className="form-group"><label className="form-label">Date & Time *</label><input type="datetime-local" value={form.dateTime} onChange={e => set('dateTime', e.target.value)} /></div>
               <div className="form-group">
                 <label className="form-label">Location {selectedScanner ? '(from scanner)' : '*'}</label>
                 {selectedScanner ? (
-                  <div style={{padding:'10px 14px',background:'rgba(99,102,241,0.06)',border:'1px solid rgba(99,102,241,0.2)',borderRadius:8,fontSize:'0.9rem',color:'var(--text-main)',display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{ padding: '10px 14px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, fontSize: '0.9rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <MapPin size={14} color="var(--blue-600)" />
                     {selectedScanner.location}
                   </div>
@@ -219,8 +274,8 @@ const NewIncident = () => {
             </div>
 
             <div className="form-group"><label className="form-label">Severity</label>
-              <div style={{display:'flex',gap:8}}>{['minor','moderate','serious','fatal'].map(s => (
-                <button key={s} type="button" className={`btn btn-sm ${form.severity===s ? `btn-${s==='minor'?'success':s==='moderate'?'warning':'danger'}` : 'btn-ghost'}`} onClick={() => set('severity',s)} style={{textTransform:'capitalize'}}>{t(`incidents.${s}`)}</button>
+              <div style={{ display: 'flex', gap: 8 }}>{['minor', 'moderate', 'serious', 'fatal'].map(s => (
+                <button key={s} type="button" className={`btn btn-sm ${form.severity === s ? `btn-${s === 'minor' ? 'success' : s === 'moderate' ? 'warning' : 'danger'}` : 'btn-ghost'}`} onClick={() => set('severity', s)} style={{ textTransform: 'capitalize' }}>{t(`incidents.${s}`)}</button>
               ))}</div>
             </div>
 
@@ -229,8 +284,8 @@ const NewIncident = () => {
 
             {/* Multiple Injury Types */}
             <div className="form-group">
-              <label className="form-label">Injury Types <span style={{color:'var(--text-muted)',fontWeight:400,fontSize:'0.78rem'}}>(select all that apply)</span></label>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              <label className="form-label">Injury Types <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.78rem' }}>(select all that apply)</span></label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {INJURY_TYPES.map(type => {
                   const selected = form.injuryTypes.some(it => it.type === type);
                   return (
@@ -239,7 +294,7 @@ const NewIncident = () => {
                       type="button"
                       className={`btn btn-sm ${selected ? 'btn-primary' : 'btn-ghost'}`}
                       onClick={() => toggleInjuryType(type)}
-                      style={{fontSize:'0.8rem'}}
+                      style={{ fontSize: '0.8rem' }}
                     >
                       {type}
                     </button>
@@ -247,14 +302,14 @@ const NewIncident = () => {
                 })}
               </div>
               {form.injuryTypes.length > 0 && (
-                <div style={{marginTop:8,fontSize:'0.8rem',color:'var(--text-secondary)'}}>
+                <div style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   Selected: {form.injuryTypes.map(it => it.type).join(', ')}
                 </div>
               )}
             </div>
 
             <div className="form-group"><label className="form-label">Body Parts Affected</label>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{BODY_PARTS.map(p => (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{BODY_PARTS.map(p => (
                 <button key={p} type="button" className={`btn btn-sm ${form.bodyPartAffected.includes(p) ? 'btn-primary' : 'btn-ghost'}`} onClick={() => toggleBodyPart(p)}>{p}</button>
               ))}</div>
             </div>
@@ -263,44 +318,103 @@ const NewIncident = () => {
           </div>
         )}
 
-        {/* Step 2: Outcome — simplified to 2 options */}
+        {/* Step 2: First Aid / Medicine */}
         {step === 2 && (
           <div>
-            <h3 style={{marginBottom:20,fontWeight:700}}>Outcome</h3>
-            <p style={{marginBottom:20,color:'var(--text-secondary)',fontSize:'0.9rem'}}>
+            <h3 style={{ marginBottom: 20, fontWeight: 700 }}>First Aid / Medicine</h3>
+            <p style={{ marginBottom: 20, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              Did the injured person use any medicine or first aid items from a box? (This will be confirmed by a manager/doctor and updated in inventory)
+            </p>
+
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '12px 16px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 8 }}>
+                <input type="checkbox" checked={form.usedFirstAid} onChange={e => set('usedFirstAid', e.target.checked)} style={{ width: 18, height: 18 }} />
+                <span style={{ fontWeight: 600 }}>Yes, used items from a First Aid Box</span>
+              </label>
+            </div>
+
+            {form.usedFirstAid && (
+              <div style={{ marginTop: 24, padding: 20, border: '1px solid var(--border-color)', borderRadius: 12, background: 'var(--bg-app)' }}>
+                <div className="form-group">
+                  <label className="form-label">Select First Aid Box *</label>
+                  <select value={form.firstAidBoxUsed} onChange={e => set('firstAidBoxUsed', e.target.value)}>
+                    <option value="">-- Select a Box --</option>
+                    {boxes.map(b => <option key={b._id} value={b._id}>{b.boxId} ({b.location})</option>)}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginTop: 20 }}>
+                  <label className="form-label">Items Used</label>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <select style={{ flex: 1 }} value={selectedItem} onChange={e => setSelectedItem(e.target.value)}>
+                      <option value="">-- Select Item --</option>
+                      {inventoryItems.map(i => <option key={i._id} value={i._id}>{i.name} ({i.unit})</option>)}
+                    </select>
+                    <input type="number" min="1" value={itemQty} onChange={e => setItemQty(e.target.value)} style={{ width: 80 }} placeholder="Qty" />
+                    <button type="button" className="btn btn-primary" onClick={addItem} disabled={!selectedItem || itemQty < 1}><Plus size={16} /> Add</button>
+                  </div>
+                </div>
+
+                {form.itemsUsed.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Added Items:</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {form.itemsUsed.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', border: '1px solid var(--border-color)', borderRadius: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Box size={16} color="var(--text-muted)" />
+                            <span style={{ fontWeight: 500 }}>{item.itemName}</span>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>x {item.quantity}</span>
+                          </div>
+                          <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--red-600)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 3: Outcome — simplified to 2 options */}
+        {step === 3 && (
+          <div>
+            <h3 style={{ marginBottom: 20, fontWeight: 700 }}>Outcome</h3>
+            <p style={{ marginBottom: 20, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
               What is the immediate outcome for the injured person?
             </p>
 
-            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {/* Option 1: Send to Doctor */}
               <button
                 type="button"
                 onClick={() => set('outcome', 'referred_to_doctor')}
                 style={{
-                  display:'flex', alignItems:'center', gap:16, padding:'20px 24px',
+                  display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px',
                   background: form.outcome === 'referred_to_doctor' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-app)',
                   border: `2px solid ${form.outcome === 'referred_to_doctor' ? 'var(--blue-600)' : 'var(--border-color)'}`,
-                  borderRadius:12, cursor:'pointer', textAlign:'left', transition:'all 0.2s ease'
+                  borderRadius: 12, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease'
                 }}
               >
                 <div style={{
-                  width:52,height:52,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+                  width: 52, height: 52, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   background: form.outcome === 'referred_to_doctor' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.06)',
                   color: 'var(--blue-600)'
                 }}>
                   <Stethoscope size={26} />
                 </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:'1rem',color:'var(--text-main)',marginBottom:4}}>Send to Doctor</div>
-                  <div style={{fontSize:'0.85rem',color:'var(--text-secondary)',lineHeight:1.5}}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)', marginBottom: 4 }}>Send to Doctor</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                     The injured person needs medical attention. The doctor will be notified and will add treatment details.
                   </div>
                 </div>
                 <div style={{
-                  width:22,height:22,borderRadius:'50%',border:`2px solid ${form.outcome === 'referred_to_doctor' ? 'var(--blue-600)' : 'var(--border-color)'}`,
-                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
+                  width: 22, height: 22, borderRadius: '50%', border: `2px solid ${form.outcome === 'referred_to_doctor' ? 'var(--blue-600)' : 'var(--border-color)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
-                  {form.outcome === 'referred_to_doctor' && <div style={{width:12,height:12,borderRadius:'50%',background:'var(--blue-600)'}} />}
+                  {form.outcome === 'referred_to_doctor' && <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--blue-600)' }} />}
                 </div>
               </button>
 
@@ -309,30 +423,30 @@ const NewIncident = () => {
                 type="button"
                 onClick={() => set('outcome', 'returned_to_work')}
                 style={{
-                  display:'flex', alignItems:'center', gap:16, padding:'20px 24px',
+                  display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px',
                   background: form.outcome === 'returned_to_work' ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-app)',
                   border: `2px solid ${form.outcome === 'returned_to_work' ? '#10B981' : 'var(--border-color)'}`,
-                  borderRadius:12, cursor:'pointer', textAlign:'left', transition:'all 0.2s ease'
+                  borderRadius: 12, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease'
                 }}
               >
                 <div style={{
-                  width:52,height:52,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+                  width: 52, height: 52, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   background: form.outcome === 'returned_to_work' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.06)',
                   color: '#10B981'
                 }}>
                   <Briefcase size={26} />
                 </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:'1rem',color:'var(--text-main)',marginBottom:4}}>Back to Work</div>
-                  <div style={{fontSize:'0.85rem',color:'var(--text-secondary)',lineHeight:1.5}}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)', marginBottom: 4 }}>Back to Work</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                     The injured person is able to continue working. This incident will be logged for records.
                   </div>
                 </div>
                 <div style={{
-                  width:22,height:22,borderRadius:'50%',border:`2px solid ${form.outcome === 'returned_to_work' ? '#10B981' : 'var(--border-color)'}`,
-                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
+                  width: 22, height: 22, borderRadius: '50%', border: `2px solid ${form.outcome === 'returned_to_work' ? '#10B981' : 'var(--border-color)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
-                  {form.outcome === 'returned_to_work' && <div style={{width:12,height:12,borderRadius:'50%',background:'#10B981'}} />}
+                  {form.outcome === 'returned_to_work' && <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#10B981' }} />}
                 </div>
               </button>
 
@@ -341,62 +455,62 @@ const NewIncident = () => {
                 type="button"
                 onClick={() => set('outcome', 'pending_confirmation')}
                 style={{
-                  display:'flex', alignItems:'center', gap:16, padding:'20px 24px',
+                  display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px',
                   background: form.outcome === 'pending_confirmation' ? 'rgba(249, 115, 22, 0.08)' : 'var(--bg-app)',
-                  border: `2px solid ${form.outcome === 'pending_confirmation' ? '#f97316' : 'var(--border-color)'}`,
-                  borderRadius:12, cursor:'pointer', textAlign:'left', transition:'all 0.2s ease'
+                  border: `2px solid ${form.outcome === 'pending_confirmation' ? '#F97316' : 'var(--border-color)'}`,
+                  borderRadius: 12, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease'
                 }}
               >
                 <div style={{
-                  width:52,height:52,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+                  width: 52, height: 52, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   background: form.outcome === 'pending_confirmation' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(249, 115, 22, 0.06)',
-                  color: '#f97316'
+                  color: '#F97316'
                 }}>
                   <Clock size={26} />
                 </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:'1rem',color:'var(--text-main)',marginBottom:4}}>Pending Manager Confirmation</div>
-                  <div style={{fontSize:'0.85rem',color:'var(--text-secondary)',lineHeight:1.5}}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)', marginBottom: 4 }}>Pending Manager Confirmation</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                     Not sure what to do? A manager will visit the scene and decide whether to send you to a doctor or back to work.
                   </div>
                 </div>
                 <div style={{
-                  width:22,height:22,borderRadius:'50%',border:`2px solid ${form.outcome === 'pending_confirmation' ? '#f97316' : 'var(--border-color)'}`,
-                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
+                  width: 22, height: 22, borderRadius: '50%', border: `2px solid ${form.outcome === 'pending_confirmation' ? '#F97316' : 'var(--border-color)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
-                  {form.outcome === 'pending_confirmation' && <div style={{width:12,height:12,borderRadius:'50%',background:'#f97316'}} />}
+                  {form.outcome === 'pending_confirmation' && <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#F97316' }} />}
                 </div>
               </button>
             </div>
 
+            {form.outcome === 'pending_confirmation' && (
+              <div style={{ marginTop: 16, padding: 14, background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.2)', borderRadius: 10, display: 'flex', gap: 10, alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <Clock size={16} color="#F97316" />
+                <span>Your manager will be notified and will visit you on-site to assess the situation and decide the next step.</span>
+              </div>
+            )}
+
             {form.outcome === 'referred_to_doctor' && (
-              <div style={{marginTop:16,padding:14,background:'rgba(99,102,241,0.06)',border:'1px solid rgba(99,102,241,0.15)',borderRadius:10,display:'flex',gap:10,alignItems:'center',fontSize:'0.85rem',color:'var(--text-secondary)'}}>
+              <div style={{ marginTop: 16, padding: 14, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, display: 'flex', gap: 10, alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 <Stethoscope size={16} color="var(--blue-600)" />
                 <span>The doctor will add treatment details, prescriptions, and further assessment to this incident report.</span>
               </div>
             )}
 
-            {form.outcome === 'pending_confirmation' && (
-              <div style={{marginTop:16,padding:14,background:'rgba(249,115,22,0.06)',border:'1px solid rgba(249,115,22,0.15)',borderRadius:10,display:'flex',gap:10,alignItems:'center',fontSize:'0.85rem',color:'var(--text-secondary)'}}>
-                <Clock size={16} color="#f97316" />
-                <span>Your manager will be notified and will visit you on-site to assess the situation and decide the next step.</span>
-              </div>
-            )}
-
             {(parseInt(form.daysLost) >= 2 || form.severity === 'fatal') && (
-              <div style={{padding:16,background:'var(--red-50)',border:'1px solid var(--red-600)',borderRadius:8,display:'flex',gap:10,alignItems:'center',marginTop:16}}>
+              <div style={{ padding: 16, background: 'var(--red-50)', border: '1px solid var(--red-600)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
                 <AlertTriangle size={20} color="var(--red-600)" />
-                <div><div style={{fontWeight:600,color:'var(--red-600)',fontSize:'0.9rem'}}>This incident is reportable under Section 88</div><div style={{fontSize:'0.82rem',color:'var(--text-secondary)'}}>Form 18 will need to be generated and submitted to the Inspector of Factories.</div></div>
+                <div><div style={{ fontWeight: 600, color: 'var(--red-600)', fontSize: '0.9rem' }}>This incident is reportable under Section 88</div><div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Form 18 will need to be generated and submitted to the Inspector of Factories.</div></div>
               </div>
             )}
           </div>
         )}
 
         {/* Navigation */}
-        <div style={{display:'flex',justifyContent:'space-between',marginTop:28,paddingTop:20,borderTop:'1px solid var(--border-color)'}}>
-          <button className="btn btn-ghost" onClick={() => setStep(s => s-1)} disabled={step === 0}><ArrowLeft size={16} /> {t('common.back')}</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border-color)' }}>
+          <button className="btn btn-ghost" onClick={() => setStep(s => s - 1)} disabled={step === 0}><ArrowLeft size={16} /> {t('common.back')}</button>
           {step < STEPS.length - 1 ? (
-            <button className="btn btn-primary" onClick={() => setStep(s => s+1)} disabled={!canNext()}>{t('common.next')} <ArrowRight size={16} /></button>
+            <button className="btn btn-primary" onClick={() => setStep(s => s + 1)} disabled={!canNext()}>{t('common.next')} <ArrowRight size={16} /></button>
           ) : (
             <button className="btn btn-success" onClick={handleSubmit} disabled={loading || !canNext()}><Save size={16} /> {loading ? t('common.loading') : t('common.submit')}</button>
           )}
