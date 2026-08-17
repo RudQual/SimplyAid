@@ -27,6 +27,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
     { path: '/reports', icon: FileBarChart, label: t('nav.reports'), roles: ['manager', 'doctor'] },
 
     // Doctor-specific
+    { path: '/inventory', icon: Package, label: 'Inventory', roles: ['doctor'] },
     { path: '/treatments', icon: Stethoscope, label: t('nav.treatments'), roles: ['doctor'] },
     { path: '/expiry', icon: Clock, label: t('nav.expiry'), roles: ['doctor'] },
     { path: '/ai-assistant', icon: Bot, label: 'AI Assistant', roles: ['doctor'] },

@@ -124,15 +124,6 @@ const Inventory = () => {
             <div style={{fontSize:'0.85rem',color:'var(--text-secondary)',display:'flex',flexDirection:'column',gap:6}}>
               <div style={{display:'flex',alignItems:'center',gap:6}}><MapPin size={14} /> {box.location}</div>
               <div style={{display:'flex',alignItems:'center',gap:6}}><User size={14} /> {box.inCharge?.name || 'Unassigned'}</div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}><Calendar size={14} /> Next inspection: {box.nextInspectionDue ? new Date(box.nextInspectionDue).toLocaleDateString() : 'Not set'}</div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{display:'flex',gap:8,marginTop:16}}>
-              <button className="btn btn-primary btn-sm" style={{flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6}} onClick={e => {e.stopPropagation(); navigate(`/inventory/boxes/scan/${box.boxId}`)}}>
-                <Edit2 size={14} /> Manage Items
-              </button>
-              <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={e => {e.stopPropagation(); handleInspect(box._id)}}>Log Inspection</button>
             </div>
 
             {/* Expand/Collapse indicator */}

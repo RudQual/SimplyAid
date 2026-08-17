@@ -56,7 +56,7 @@ async function seedScanners() {
     }
 
     // Remove existing scanners
-    await Scanner.deleteMany({ company: company._id });
+    await Scanner.deleteMany({});
     console.log('🗑️  Cleared existing scanners');
 
     const scanners = [];

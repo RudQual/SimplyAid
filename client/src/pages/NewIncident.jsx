@@ -81,28 +81,68 @@ const NewIncident = () => {
   useEffect(() => {
     const handleAutofill = () => {
       const defaultDept = departments.length > 0 ? departments[0]._id : '';
+      const scenarios = [
+        {
+          injuredPerson: { name: 'Rajesh Kumar', employeeId: 'EMP-9021', department: defaultDept, age: '34', gender: 'male', designation: 'Machine Operator' },
+          location: 'Assembly Line C, Sector 4',
+          severity: 'serious',
+          description: 'While performing routine maintenance, Rajesh slipped on an unmarked oil spill near conveyor belt #3. He landed heavily on his right arm, sustaining a deep laceration and a suspected fracture.',
+          causeOfInjury: 'Slip and Fall due to unmarked oil spill',
+          bodyPartAffected: ['Arm', 'Hand'],
+          injuryTypes: [{ type: 'Fracture', severity: 'serious' }, { type: 'Cut / Laceration', severity: 'serious' }],
+          outcome: 'referred_to_doctor',
+          hospitalName: 'City Care Hospital',
+          daysLost: 14,
+          witnesses: 'Amit Patel (EMP-4051), Sunita Sharma (EMP-1120)'
+        },
+        {
+          injuredPerson: { name: 'Priya Singh', employeeId: 'EMP-7732', department: defaultDept, age: '28', gender: 'female', designation: 'Quality Inspector' },
+          location: 'Packaging Area B',
+          severity: 'minor',
+          description: 'Priya caught her index finger in the packaging sealing machine, causing a minor cut and bruising. The machine was immediately stopped.',
+          causeOfInjury: 'Machine pinch point',
+          bodyPartAffected: ['Finger'],
+          injuryTypes: [{ type: 'Cut / Laceration', severity: 'minor' }, { type: 'Crush Injury', severity: 'minor' }],
+          outcome: 'returned_to_work',
+          hospitalName: '',
+          daysLost: 0,
+          witnesses: 'Vikram Das (EMP-2134)'
+        },
+        {
+          injuredPerson: { name: 'Anil Desai', employeeId: 'EMP-5510', department: defaultDept, age: '45', gender: 'male', designation: 'Chemical Handler' },
+          location: 'Chemical Storage Facility',
+          severity: 'moderate',
+          description: 'Anil accidentally splashed cleaning solvent on his face and eyes while transferring liquids. He was wearing standard PPE but the splash bypassed the goggles.',
+          causeOfInjury: 'Chemical splash',
+          bodyPartAffected: ['Face', 'Eye'],
+          injuryTypes: [{ type: 'Chemical Exposure', severity: 'moderate' }, { type: 'Eye Injury', severity: 'moderate' }],
+          outcome: 'pending_confirmation',
+          hospitalName: '',
+          daysLost: 0,
+          witnesses: 'Suresh Verma (EMP-8822)'
+        },
+        {
+          injuredPerson: { name: 'Meera Reddy', employeeId: 'EMP-3204', department: defaultDept, age: '31', gender: 'female', designation: 'Warehouse Associate' },
+          location: 'Loading Dock 2',
+          severity: 'moderate',
+          description: 'A stack of small boxes fell from a pallet while Meera was unloading. One box struck her shoulder, causing a sprain.',
+          causeOfInjury: 'Falling object',
+          bodyPartAffected: ['Shoulder'],
+          injuryTypes: [{ type: 'Sprain / Strain', severity: 'moderate' }],
+          outcome: 'referred_to_doctor',
+          hospitalName: 'Apex Medical Center',
+          daysLost: 3,
+          witnesses: 'John Smith (EMP-1102)'
+        }
+      ];
+
+      const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+
       setForm(f => ({
         ...f,
-        injuredPerson: { 
-          name: 'Rajesh Kumar', 
-          employeeId: 'EMP-9021', 
-          department: defaultDept, 
-          age: '34', 
-          gender: 'male', 
-          designation: 'Machine Operator' 
-        },
+        ...randomScenario,
         dateTime: new Date().toISOString().slice(0,16),
-        location: 'Assembly Line C, Sector 4',
-        department: defaultDept,
-        severity: 'serious',
-        description: 'While performing routine maintenance, Rajesh slipped on an unmarked oil spill near conveyor belt #3. He landed heavily on his right arm, sustaining a deep laceration and a suspected fracture.',
-        causeOfInjury: 'Slip and Fall due to unmarked oil spill',
-        bodyPartAffected: ['Arm', 'Hand'],
-        injuryTypes: [{ type: 'Fracture', severity: 'serious' }, { type: 'Cut / Laceration', severity: 'serious' }],
-        outcome: 'referred_to_doctor',
-        hospitalName: 'City Care Hospital',
-        daysLost: 14,
-        witnesses: 'Amit Patel (EMP-4051), Sunita Sharma (EMP-1120)'
+        department: defaultDept
       }));
       toast.success('Form magically autofilled! ✨');
     };

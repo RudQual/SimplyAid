@@ -37,6 +37,68 @@ exports.createIncident = async (req, res, next) => {
     incident.statusHistory.push({ status: 'reported', changedBy: req.user._id, notes: isManagerAssisted ? 'Employee requested manager assistance to fill report' : 'Incident reported' });
     await incident.save();
 
+    // --- Deduct from First Aid Box ---
+    if (incident.firstAidBoxUsed && incident.itemsUsed && incident.itemsUsed.length > 0) {
+      const FirstAidBox = require('../models/FirstAidBox');
+      const box = await FirstAidBox.findById(incident.firstAidBoxUsed).populate('items.item', 'name');
+      if (box) {
+        let boxUpdated = false;
+        let emptyItems = [];
+        
+        incident.itemsUsed.forEach(usage => {
+          const itemIndex = box.items.findIndex(i => i.item._id.toString() === usage.item.toString() || i.item.toString() === usage.item.toString());
+          if (itemIndex > -1) {
+            const boxItem = box.items[itemIndex];
+            let remaining = usage.quantity;
+
+            if (boxItem.stocks && boxItem.stocks.length > 0) {
+              boxItem.stocks.sort((a, b) => {
+                if (!a.expiryDate) return 1;
+                if (!b.expiryDate) return -1;
+                return new Date(a.expiryDate) - new Date(b.expiryDate);
+              });
+              for (const stock of boxItem.stocks) {
+                if (remaining <= 0) break;
+                const deduct = Math.min(remaining, stock.quantity);
+                stock.quantity -= deduct;
+                remaining -= deduct;
+              }
+              boxItem.stocks = boxItem.stocks.filter(s => s.quantity > 0);
+              boxItem.currentQty = boxItem.stocks.reduce((sum, s) => sum + s.quantity, 0);
+            } else {
+              boxItem.currentQty -= usage.quantity;
+              if (boxItem.currentQty < 0) boxItem.currentQty = 0;
+            }
+            boxUpdated = true;
+
+            // Check if stock became empty
+            if (boxItem.currentQty === 0) {
+              emptyItems.push(boxItem.item.name || usage.itemName || 'An item');
+            }
+          }
+        });
+        
+        if (boxUpdated) {
+          box.computeStatus();
+          await box.save();
+        }
+
+        // Notify doctors if any item became completely empty
+        if (emptyItems.length > 0) {
+          const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
+          const inventoryNotifs = doctors.map(d => ({
+            recipient: d._id, company: incident.company, type: 'inventory_alert',
+            title: `⚠️ Inventory Empty: ${box.boxId}`,
+            titleHi: `⚠️ इन्वेंटरी खाली: ${box.boxId}`,
+            message: `Stock is completely empty for: ${emptyItems.join(', ')} in box ${box.boxId} after incident ${incident.incidentId}.`,
+            severity: 'critical', priority: 'high', category: 'inventory',
+            relatedModel: 'FirstAidBox', relatedId: box._id
+          }));
+          if (inventoryNotifs.length) await Notification.insertMany(inventoryNotifs);
+        }
+      }
+    }
+
     // --- Department Tree Notifications ---
     // 1. Notify all managers of the incident's department
     const deptManagerFilter = {

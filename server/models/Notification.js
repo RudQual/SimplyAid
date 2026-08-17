@@ -17,6 +17,7 @@ const notificationSchema = new mongoose.Schema({
       'incident_alert',
       'incident_update',
       'inventory_low',
+      'inventory_alert',
       'certification_expiry',
       'inspection_due',
       'report_pending',
