@@ -19,7 +19,7 @@ Created a comprehensive interview preparation document for the SimplyAID project
 - Reviewed package.json files for all dependencies
 
 ### 2. Document Created
-- **File**: Interview preparation artifact (44 questions across 13 sections)
+- **File**: Interview preparation artifact (**64 questions across 20 sections**)
 - **Sections covered**:
   1. Architecture & Tech Stack (4 questions)
   2. Authentication & Authorization (4 questions)
@@ -34,6 +34,13 @@ Created a comprehensive interview preparation document for the SimplyAID project
   11. Design Decisions (3 questions)
   12. Quick-Fire — Middleware, Mongoose, Aggregations, Helmet (7 questions)
   13. Summary Cheat Sheet
+  14. **"Walk Me Through" Scenarios** — SOS flow, Login flow, Expiry flow (3 questions)
+  15. **React Deep-Dive** — Multi-step forms, Promise.all, Data-driven sidebar, Hooks, Loading states (5 questions)
+  16. **Deployment & DevOps** — 3 deployment options, Environment variables (2 questions)
+  17. **REST API Design** — RESTful conventions, Dynamic filtering/search (2 questions)
+  18. **Compliance Scoring Algorithm** — Penalty model, Traffic-light system (1 question)
+  19. **HR / Behavioral** — Project pitch, Challenges, Role system, Debugging approach (4 questions)
+  20. **Follow-Up Chains** — Race conditions, XSS risks, Query optimization (3 questions)
 
 ### 3. Key Things to Remember
 - SimplyAID is a **MERN stack** web app (NOT Android/mobile), built with React + Vite frontend and Express + MongoDB backend
@@ -41,3 +48,6 @@ Created a comprehensive interview preparation document for the SimplyAID project
 - **9 roles**, **14 models**, **18 route modules**, **80+ API functions**
 - Key patterns: JWT auth, RBAC, FIFO stock deduction, pre-save hooks, Mongoose aggregation pipelines
 - No Redux — uses React Context API (AuthContext + ScannerContext)
+- Be ready for "walk me through" questions — trace SOS, Login, and Expiry flows end-to-end
+- Know the compliance scoring algorithm (6 checks, penalty system, traffic-light status)
+- Prepare behavioral answers: project pitch, biggest challenge (batch-level inventory), debugging approach
