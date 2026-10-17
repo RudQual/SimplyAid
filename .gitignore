@@ -33,3 +33,6 @@ Thumbs.db
 # Uploads
 server/uploads/*
 !server/uploads/.gitkeep
+
+# Local documentation & notes
+steps/
