@@ -190,9 +190,10 @@ exports.getInventoryAnalytics = async (req, res, next) => {
     boxes.forEach(box => {
       box.items.forEach(item => {
         totalItems++;
-        if (item.currentQty < item.requiredQty) lowStockItems++;
+        const qty = (item.stocks || []).reduce((sum, s) => sum + (s.quantity || 0), 0);
+        if (qty < item.requiredQty) lowStockItems++;
         else adequateItems++;
-        if (item.expiryDate && new Date(item.expiryDate) < now) expiredItems++;
+        if ((item.stocks || []).some((s) => s.quantity > 0 && s.expiryDate && new Date(s.expiryDate) < now)) expiredItems++;
       });
     });
 
@@ -225,43 +226,24 @@ exports.getInventoryAnalytics = async (req, res, next) => {
 exports.getComplianceAnalytics = async (req, res, next) => {
   try {
     const companyId = req.user.company._id || req.user.company;
+    const { departmentCompliance } = require('../services/complianceService');
+    const depts = await departmentCompliance(companyId);
+    const deptRankings = depts.departments
+      .map((d) => ({ name: d.department.name, code: d.department.code, score: d.complianceScore, empCount: d.employeeCount, boxCount: d.availableBoxes, requiredBoxes: d.requiredBoxes }))
+      .sort((a, b) => b.score - a.score);
 
-    // Department rankings
-    const departments = await Department.find({ company: companyId, isActive: true });
-    const deptRankings = await Promise.all(departments.map(async dept => {
-      const empCount = await User.countDocuments({ department: dept._id, isActive: true });
-      const boxCount = await FirstAidBox.countDocuments({ department: dept._id, isActive: true });
-      const adequateBoxes = await FirstAidBox.countDocuments({ department: dept._id, status: 'adequate', isActive: true });
-      const certCount = await User.countDocuments({ department: dept._id, firstAidCertified: true, isActive: true });
-
-      const requiredBoxes = Math.ceil(empCount / 150) || 1;
-      let score = 100;
-      if (boxCount < requiredBoxes) score -= 30;
-      if (adequateBoxes < boxCount) score -= 20;
-      if (certCount < boxCount) score -= 15;
-
-      return { name: dept.name, code: dept.code, score: Math.max(0, score), empCount, boxCount, requiredBoxes };
-    }));
-
-    deptRankings.sort((a, b) => b.score - a.score);
-
-    // Inspection completion rate
-    const totalBoxes = await FirstAidBox.countDocuments({ company: companyId, isActive: true });
-    const inspectedThisMonth = await Inspection.countDocuments({
-      company: companyId,
-      inspectionDate: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) }
-    });
-
-    const inspectionRate = totalBoxes > 0 ? Math.round((inspectedThisMonth / totalBoxes) * 100) : 0;
+    // Share of active kits inspected at least once this month
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const [totalBoxes, inspectedBoxes] = await Promise.all([
+      FirstAidBox.countDocuments({ company: companyId, isActive: true }),
+      Inspection.distinct('firstAidBox', { company: companyId, inspectionDate: { $gte: monthStart } })
+    ]);
+    const inspectedThisMonth = inspectedBoxes.length;
+    const inspectionRate = totalBoxes > 0 ? Math.min(100, Math.round((inspectedThisMonth / totalBoxes) * 100)) : 0;
 
     res.json({
       success: true,
-      data: {
-        departmentRankings: deptRankings,
-        inspectionCompletionRate: inspectionRate,
-        inspectedThisMonth,
-        totalBoxes
-      }
+      data: { departmentRankings: deptRankings, inspectionCompletionRate: inspectionRate, inspectedThisMonth, totalBoxes }
     });
   } catch (error) { next(error); }
 };

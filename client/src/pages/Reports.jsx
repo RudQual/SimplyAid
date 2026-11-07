@@ -1,124 +1,144 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { getComplianceStatus, getDepartmentSummary, getAccidentRegister } from '../services/api';
-import { ShieldCheck, CheckCircle, XCircle, Download, FileText } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { FileBarChart, FileText, FileSpreadsheet, Package, PackageX, CalendarClock, ShieldCheck, SearchCheck, ArrowLeftRight, ClipboardList, History } from 'lucide-react';
+import useAsync from '../hooks/useAsync';
+import { listReports, getReport, exportReport } from '../services/api';
+import { PageHeader, Card, EmptyState, ErrorState, SkeletonRows, Spinner } from '../components/ui';
+import { CATEGORIES, labelize, errorMessage, saveBlob, formatDateTime } from '../utils/format';
+
+const META = {
+  inventory: { icon: Package, text: 'Stock and fill rate for every catalog item across kits.' },
+  'low-stock': { icon: PackageX, text: 'Every kit item below its required quantity, largest shortfall first.' },
+  expiry: { icon: CalendarClock, text: 'Batches by days to expiry, including expired stock.' },
+  compliance: { icon: ShieldCheck, text: 'Statutory checks plus a score and issues for every kit.' },
+  inspections: { icon: SearchCheck, text: 'Inspection history with results and open deficiencies.' },
+  'stock-movements': { icon: ArrowLeftRight, text: 'Ledger of restocks, usage, corrections and write-offs.' },
+  'accident-register': { icon: ClipboardList, text: 'Reportable accidents (Section 88) with Form 18 status.' },
+  activity: { icon: History, text: 'Who did what, and when, across the system.' }
+};
+
+// Filters available per report
+const FILTERS = {
+  inventory: ['category', 'stockStatus'],
+  expiry: ['expiryStatus'],
+  inspections: ['dates', 'inspectionStatus'],
+  'stock-movements': ['dates', 'movementType'],
+  'accident-register': ['dates'],
+  activity: ['dates']
+};
+
+const PREVIEW_ROWS = 50;
 
 const Reports = () => {
-  const { t, requireAuth } = useAuth();
-  const [tab, setTab] = useState('compliance');
-  const [compliance, setCompliance] = useState(null);
-  const [deptSummary, setDeptSummary] = useState([]);
-  const [accidents, setAccidents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [params, setParams] = useSearchParams();
+  const type = params.get('type') || 'inventory';
+  const [filters, setFilters] = useState({});
+  const [busy, setBusy] = useState(null);
+  const catalog = useAsync(() => listReports(), [], { select: (r) => r.data.data });
 
-  useEffect(() => { loadData(); }, [tab]);
-  const loadData = async () => {
-    setLoading(true);
+  const query = useMemo(() => {
+    const q = {};
+    if (filters.category) q.category = filters.category;
+    if (filters.stockStatus) q.stockStatus = filters.stockStatus;
+    if (filters.status) q.status = filters.status;
+    if (filters.type) q.type = filters.type;
+    if (filters.startDate) q.startDate = filters.startDate;
+    if (filters.endDate) q.endDate = filters.endDate;
+    return q;
+  }, [filters]);
+
+  const report = useAsync(() => getReport(type, query), [type, JSON.stringify(query)], { select: (r) => r.data.data });
+
+  const choose = (t) => { setFilters({}); setParams({ type: t }, { replace: true }); };
+  const set = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }));
+  const download = async (format) => {
+    setBusy(format);
     try {
-      if (tab === 'compliance') { const r = await getComplianceStatus(); setCompliance(r.data.data); }
-      else if (tab === 'department') { const r = await getDepartmentSummary(); setDeptSummary(r.data.data); }
-      else { const r = await getAccidentRegister({}); setAccidents(r.data.data); }
-    } catch (e) { } finally { setLoading(false); }
+      const res = await exportReport(type, format, query);
+      saveBlob(res.data, `simplyaid-${type}-${new Date().toISOString().slice(0, 10)}.${format}`);
+      toast.success(`${format.toUpperCase()} downloaded`);
+    } catch (err) {
+      toast.error(errorMessage(err, 'Export failed'));
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const exportCSV = (data, filename) => {
-    requireAuth(() => {
-      if (!data.length) return;
-      const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object');
-      const csv = [headers.join(','), ...data.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
-    });
-  };
+  const available = catalog.data || [];
+  const f = FILTERS[type] || [];
+  const r = report.data;
 
   return (
     <div className="page-content">
-      <div className="page-header">
-        <div><h1 className="page-title">{t('nav.reports')}</h1><p className="page-subtitle">Compliance status and regulatory reports</p></div>
-      </div>
+      <PageHeader title="Reports" subtitle="Preview any report on live data, then export it as CSV (spreadsheets) or PDF (print & audits)." />
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'var(--bg-secondary)', padding: 4, borderRadius: 10, width: 'fit-content' }}>
-        {[{ key: 'compliance', label: 'Compliance' }, { key: 'department', label: 'Department Summary' }, { key: 'accidents', label: 'Accident Register' }].map(tb => (
-          <button key={tb.key} className={`btn btn-sm ${tab === tb.key ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab(tb.key)} style={{ borderRadius: 8 }}>{tb.label}</button>
-        ))}
-      </div>
+      <div className="report-grid">
+        <div className="stack-sm">
+          {catalog.loading && <SkeletonRows rows={6} cols={1} />}
+          {available.map((rep) => {
+            const M = META[rep.type] || { icon: FileBarChart, text: '' };
+            return (
+              <button key={rep.type} className={`card report-option ${rep.type === type ? 'active' : ''}`} onClick={() => choose(rep.type)}>
+                <span className={`stat-icon ${rep.type === type ? 'tone-blue' : 'tone-slate'}`}><M.icon size={17} /></span>
+                <span style={{ minWidth: 0 }}><span className="strong" style={{ display: 'block' }}>{rep.title}</span><span className="xsmall muted">{M.text}</span></span>
+              </button>
+            );
+          })}
+        </div>
 
-      {loading ? <div className="page-loader"><div className="spinner"></div></div> : (
-        <>
-          {tab === 'compliance' && compliance && (
+        <div className="card card-flush" style={{ minWidth: 0 }}>
+          <div className="card-header">
             <div>
-              <div className="card" style={{ marginBottom: 24, textAlign: 'center', padding: 40 }}>
-                <div style={{ width: 120, height: 120, borderRadius: '50%', border: `6px solid ${compliance.overallCompliance >= 80 ? 'var(--success)' : compliance.overallCompliance >= 50 ? 'var(--warning)' : 'var(--danger)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', flexDirection: 'column' }}>
-                  <div style={{ fontSize: '2.2rem', fontWeight: 800 }}>{compliance.overallCompliance}%</div>
-                </div>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Overall Compliance Score</h2>
-                <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>Based on Factories Act, 1948 requirements</p>
-              </div>
-              <div className="card">
-                <h3 className="card-title" style={{ marginBottom: 16 }}>Compliance Checks</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {compliance.checks.map((c, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: 8 }}>
-                      {c.compliant ? <CheckCircle size={20} color="var(--success)" /> : <XCircle size={20} color="var(--danger)" />}
-                      <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{c.rule}</div><div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.section}</div></div>
-                      <div style={{ textAlign: 'right', fontSize: '0.85rem' }}><span style={{ color: c.compliant ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{c.actual}</span> / {c.required}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <h3 className="card-title">{r?.title || 'Report'}</h3>
+              <p className="card-subtitle">{r ? `${r.rows.length} row${r.rows.length === 1 ? '' : 's'} · generated ${formatDateTime(r.generatedAt)}` : 'Loading…'}</p>
+            </div>
+            <div className="row">
+              <button className="btn btn-secondary btn-sm" onClick={() => download('csv')} disabled={Boolean(busy) || !r}>{busy === 'csv' ? <Spinner size="sm" /> : <FileSpreadsheet size={15} />} CSV</button>
+              <button className="btn btn-primary btn-sm" onClick={() => download('pdf')} disabled={Boolean(busy) || !r}>{busy === 'pdf' ? <Spinner size="sm" light /> : <FileText size={15} />} PDF</button>
+            </div>
+          </div>
+          {f.length > 0 && (
+            <div className="toolbar" style={{ paddingBottom: 0 }}>
+              {f.includes('category') && <select value={filters.category || ''} onChange={set('category')} aria-label="Category"><option value="">All categories</option>{CATEGORIES.map((c) => <option key={c} value={c}>{labelize(c)}</option>)}</select>}
+              {f.includes('stockStatus') && <select value={filters.stockStatus || ''} onChange={set('stockStatus')} aria-label="Stock status"><option value="">Any stock status</option>{['in_stock', 'low_stock', 'out_of_stock', 'not_stocked'].map((s) => <option key={s} value={s}>{labelize(s)}</option>)}</select>}
+              {f.includes('expiryStatus') && <select value={filters.status || ''} onChange={set('status')} aria-label="Expiry status"><option value="">All batches</option><option value="attention">Needs action (≤ 30 days)</option><option value="expired">Expired</option><option value="warning">31–90 days</option></select>}
+              {f.includes('inspectionStatus') && <select value={filters.status || ''} onChange={set('status')} aria-label="Result"><option value="">Any result</option>{['adequate', 'needs_replenishment', 'items_expired', 'failed'].map((s) => <option key={s} value={s}>{labelize(s)}</option>)}</select>}
+              {f.includes('movementType') && <select value={filters.type || ''} onChange={set('type')} aria-label="Type"><option value="">All movements</option>{['restock', 'dispense', 'adjustment', 'expired_removal'].map((s) => <option key={s} value={s}>{labelize(s)}</option>)}</select>}
+              {f.includes('dates') && (
+                <>
+                  <input type="date" value={filters.startDate || ''} onChange={set('startDate')} style={{ width: 'auto' }} aria-label="From" />
+                  <input type="date" value={filters.endDate || ''} onChange={set('endDate')} style={{ width: 'auto' }} aria-label="To" />
+                </>
+              )}
             </div>
           )}
-
-          {tab === 'department' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(deptSummary.map(d => ({ Department: d.department.name, Incidents: d.incidentCount, Open: d.openCases, Boxes: d.boxCount, NeedsAttention: d.boxesNeedingAttention, Certified: d.certifiedCount })), 'dept_summary.csv')}><Download size={14} /> Export CSV</button>
-              </div>
-              <div className="table-container">
+          {r?.summary && (
+            <div style={{ padding: '14px 20px 0' }}>
+              {r.summary.map((line) => <div key={line} className={`small ${line.startsWith('FAIL') ? 'text-red' : line.startsWith('PASS') ? 'text-green' : 'strong'}`}>{line}</div>)}
+            </div>
+          )}
+          <div style={{ marginTop: 14 }}>
+            {report.loading && <SkeletonRows rows={8} cols={5} />}
+            {report.error && <ErrorState error={report.error} onRetry={report.reload} />}
+            {r && !report.loading && r.rows.length === 0 && <EmptyState icon={FileBarChart} title="No rows" description="Nothing matches the selected filters." />}
+            {r && !report.loading && r.rows.length > 0 && (
+              <div className="table-container" style={{ maxHeight: 560 }}>
                 <table className="data-table">
-                  <thead><tr><th>Department</th><th>Risk</th><th>Workers</th><th>Incidents</th><th>Open Cases</th><th>FA Boxes</th><th>Boxes Needing Attention</th><th>Certified Staff</th></tr></thead>
-                  <tbody>{deptSummary.map(d => (
-                    <tr key={d.department._id}>
-                      <td style={{ fontWeight: 600 }}>{d.department.name}</td>
-                      <td><span className={`badge badge-${d.department.riskLevel === 'low' ? 'minor' : d.department.riskLevel === 'medium' ? 'moderate' : 'serious'}`}>{d.department.riskLevel}</span></td>
-                      <td>{d.workerCount}</td><td>{d.incidentCount}</td><td>{d.openCases}</td><td>{d.boxCount}</td>
-                      <td style={{ color: d.boxesNeedingAttention > 0 ? 'var(--danger)' : 'var(--success)' }}>{d.boxesNeedingAttention}</td>
-                      <td>{d.certifiedCount}</td>
-                    </tr>
-                  ))}</tbody>
+                  <thead><tr>{r.columns.map((c) => <th key={c.key}>{c.label}</th>)}</tr></thead>
+                  <tbody>
+                    {r.rows.slice(0, PREVIEW_ROWS).map((row, idx) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <tr key={idx}>{r.columns.map((c) => <td key={c.key} className="small">{row[c.key] === '' || row[c.key] === undefined || row[c.key] === null ? '—' : String(row[c.key])}</td>)}</tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {tab === 'accidents' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(accidents.map(a => ({ ID: a.incidentId, Date: new Date(a.dateTime).toLocaleDateString(), Person: a.injuredPerson?.name, Severity: a.severity, DaysLost: a.daysLost, Outcome: a.outcome })), 'accident_register.csv')}><Download size={14} /> Export CSV</button>
-              </div>
-              <div className="card" style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--danger)' }}><FileText size={16} /> Showing reportable incidents only (Section 88 — death or 48+ hrs disability)</div>
-              </div>
-              <div className="table-container">
-                <table className="data-table">
-                  <thead><tr><th>Incident ID</th><th>Date</th><th>Injured Person</th><th>Department</th><th>Severity</th><th>Days Lost</th><th>Outcome</th><th>Form 18</th></tr></thead>
-                  <tbody>{accidents.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No reportable incidents</td></tr> : accidents.map(a => (
-                    <tr key={a._id}>
-                      <td style={{ fontWeight: 600, color: 'var(--accent)' }}>{a.incidentId}</td>
-                      <td>{new Date(a.dateTime).toLocaleDateString()}</td>
-                      <td>{a.injuredPerson?.name}</td><td>{a.department?.name}</td>
-                      <td><span className={`badge badge-${a.severity}`}>{a.severity}</span></td>
-                      <td>{a.daysLost}</td><td style={{ textTransform: 'capitalize' }}>{a.outcome?.replace(/_/g, ' ')}</td>
-                      <td>{a.form18Generated ? <CheckCircle size={16} color="var(--success)" /> : <span style={{ color: 'var(--warning)', fontSize: '0.8rem' }}>Pending</span>}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+            )}
+            {r && r.rows.length > PREVIEW_ROWS && <p className="small muted" style={{ padding: '12px 20px' }}>Showing the first {PREVIEW_ROWS} of {r.rows.length} rows. Export to get everything.</p>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

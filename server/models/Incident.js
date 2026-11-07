@@ -99,8 +99,17 @@ const incidentSchema = new mongoose.Schema({
   itemsUsed: [{
     item: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem' },
     itemName: String,
-    quantity: { type: Number, default: 1 }
+    quantity: { type: Number, default: 1, min: [1, 'Quantity used must be at least 1'] }
   }],
+  // Set once the items used have been deducted from the kit, so stock is
+  // never deducted twice as the incident moves through its workflow.
+  stockDeducted: {
+    type: Boolean,
+    default: false
+  },
+  stockDeductedAt: {
+    type: Date
+  },
   // Outcome
   outcome: {
     type: String,
@@ -206,15 +215,8 @@ const incidentSchema = new mongoose.Schema({
 // Auto-generate incident ID
 incidentSchema.pre('save', async function() {
   if (!this.incidentId) {
-    const year = new Date().getFullYear();
-    const count = await mongoose.model('Incident').countDocuments({
-      company: this.company,
-      createdAt: {
-        $gte: new Date(`${year}-01-01`),
-        $lt: new Date(`${year + 1}-01-01`)
-      }
-    });
-    this.incidentId = `INC-${year}-${String(count + 1).padStart(4, '0')}`;
+    const Counter = require('./Counter');
+    this.incidentId = await Counter.nextYearlyId({ prefix: 'INC', model: 'Incident', field: 'incidentId', companyId: this.company });
   }
 
   // Auto-determine if reportable (Section 88: death or 48+ hrs / 2+ days lost)
@@ -227,5 +229,7 @@ incidentSchema.pre('save', async function() {
 incidentSchema.index({ company: 1, createdAt: -1 });
 incidentSchema.index({ department: 1, status: 1 });
 incidentSchema.index({ severity: 1 });
+incidentSchema.index({ company: 1, dateTime: -1 });
+incidentSchema.index({ company: 1, reportedBy: 1 });
 
 module.exports = mongoose.model('Incident', incidentSchema);

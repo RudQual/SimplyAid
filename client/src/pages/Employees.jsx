@@ -1,148 +1,224 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { getUsers, getDepartments, registerUser } from '../services/api';
-import { Search, Plus, X, UserPlus, Shield, Award, CreditCard, Eye, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { UserPlus, Users, MoreHorizontal, Pencil, KeyRound, UserX, UserCheck, IdCard, BadgeCheck } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import useAsync from '../hooks/useAsync';
+import { getUsers, getDepartments, createUser, updateUser, setUserStatus, resetUserPassword } from '../services/api';
+import { PageHeader, SearchInput, StatusBadge, EmptyState, ErrorState, SkeletonRows, Pagination, Modal, Field, Spinner, useConfirm } from '../components/ui';
+import { labelize, formatDate, timeAgo, errorMessage, initials, toInputDate } from '../utils/format';
 
-const Employees = () => {
-  const { t, hasRole, requireAuth } = useAuth();
-  const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
-  const [depts, setDepts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterDept, setFilterDept] = useState('');
-  const [filterRole, setFilterRole] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'employee', department: '', phone: '', designation: '' });
+const LIMIT = 20;
+const strongPw = (pw) => pw.length >= 8 && /[A-Za-z]/.test(pw) && /\d/.test(pw);
 
-  useEffect(() => { load(); }, [search, filterDept, filterRole]);
-  const load = async () => {
-    setLoading(true);
+const UserFormModal = ({ open, onClose, user: target, departments, onSaved }) => {
+  const { user: me } = useAuth();
+  const isEdit = Boolean(target);
+  const [form, setForm] = useState({});
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+  const roleOptions = me.role === 'admin' ? ['employee', 'manager', 'doctor', 'admin'] : ['employee', 'manager', 'doctor'];
+  const canAssignRole = ['admin', 'doctor'].includes(me.role) && (!isEdit || (target._id !== me._id && (target.role !== 'admin' || me.role === 'admin')));
+
+  useEffect(() => {
+    if (!open) return;
+    setErrors({});
+    setForm(target ? {
+      name: target.name, email: target.email, role: target.role, department: target.department?._id || '', employeeId: target.employeeId || '',
+      designation: target.designation || '', phone: target.phone || '', firstAidCertified: Boolean(target.firstAidCertified),
+      certificationExpiry: toInputDate(target.certificationExpiry)
+    } : {
+      name: '', email: '', password: '', role: 'employee', department: me.role === 'manager' ? me.department?._id : '', employeeId: '',
+      designation: '', phone: '', firstAidCertified: false, certificationExpiry: ''
+    });
+  }, [open, target, me]);
+
+  const set = (k) => (e) => { const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value; setForm((f) => ({ ...f, [k]: v })); setErrors((x) => ({ ...x, [k]: undefined })); };
+
+  const submit = async () => {
+    const er = {};
+    if ((form.name || '').trim().length < 2) er.name = 'Enter the full name';
+    if (!isEdit && !/^\S+@\S+\.\S+$/.test(form.email || '')) er.email = 'Enter a valid email';
+    if (!isEdit && !strongPw(form.password || '')) er.password = 'At least 8 characters with a letter and a number';
+    if (form.firstAidCertified && !form.certificationExpiry) er.certificationExpiry = 'Enter when the certification expires';
+    setErrors(er);
+    if (Object.keys(er).length) return;
+    setBusy(true);
+    const payload = {
+      name: form.name.trim(), department: form.department || null, employeeId: form.employeeId.trim() || undefined,
+      designation: form.designation.trim(), phone: form.phone.trim(), firstAidCertified: form.firstAidCertified,
+      certificationExpiry: form.certificationExpiry || null
+    };
+    if (canAssignRole) payload.role = form.role;
     try {
-      const params = {};
-      if (search) params.search = search;
-      if (filterDept) params.department = filterDept;
-      if (filterRole) params.role = filterRole;
-      const [uRes, dRes] = await Promise.all([getUsers(params), getDepartments()]);
-      setUsers(uRes.data.data); setDepts(dRes.data.data);
-    } catch(e){} finally { setLoading(false); }
+      const res = isEdit ? await updateUser(target._id, payload) : await createUser({ ...payload, email: form.email.trim(), password: form.password });
+      toast.success(res.data.message);
+      onSaved(res.data.data);
+      onClose();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not save'));
+    } finally {
+      setBusy(false);
+    }
   };
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    try {
-      const userData = { ...form };
-      // Get company from current user's data
-      const stored = JSON.parse(localStorage.getItem('simplyaid_user') || '{}');
-      userData.company = stored.company?._id || stored.company;
-      // Employee ID is auto-generated on the backend — no manual input needed
-      await registerUser(userData);
-      toast.success('Employee added — ID and QR code auto-generated');
-      setShowAdd(false);
-      load();
-      setForm({ name: '', email: '', password: '', role: 'employee', department: '', phone: '', designation: '' });
-    } catch (e) { toast.error(e.response?.data?.message || 'Failed to add'); }
-  };
-
-  const roleColors = { doctor: 'purple', manager: 'blue', user: 'closed' };
-  const statusColors = { active: 'green', on_leave: 'amber', suspended: 'red', resigned: 'closed' };
-
-  const getStatus = (u) => u.employeeStatus || (u.isActive ? 'active' : 'resigned');
 
   return (
+    <Modal open={open} onClose={onClose} busy={busy} size="lg" title={isEdit ? `Edit ${target.name}` : 'Add a person'}
+      description={isEdit ? 'Update employment, role and first-aid certification details.' : 'They can sign in immediately with the email and temporary password you set.'}
+      footer={<><button className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button><button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? <Spinner size="sm" light /> : isEdit ? 'Save changes' : 'Create account'}</button></>}>
+      <div className="form-row">
+        <Field label="Full name" required error={errors.name}><input value={form.name || ''} onChange={set('name')} autoFocus /></Field>
+        <Field label="Email" required={!isEdit} error={errors.email} hint={isEdit ? 'Email can’t be changed here.' : ''}><input type="email" value={form.email || ''} onChange={set('email')} disabled={isEdit} /></Field>
+      </div>
+      {!isEdit && <Field label="Temporary password" required error={errors.password} hint="Share it securely; they should change it after first sign-in."><input type="text" value={form.password || ''} onChange={set('password')} autoComplete="new-password" /></Field>}
+      <div className="form-row">
+        <Field label="Role" hint={!canAssignRole ? (isEdit && target._id === me._id ? 'You can’t change your own role.' : 'Only administrators and doctors assign roles.') : 'Determines what this person can see and do.'}>
+          <select value={form.role || 'employee'} onChange={set('role')} disabled={!canAssignRole}>{(canAssignRole ? roleOptions : [form.role]).map((r) => <option key={r} value={r}>{labelize(r)}</option>)}</select>
+        </Field>
+        <Field label="Department">
+          <select value={form.department || ''} onChange={set('department')} disabled={me.role === 'manager'}>
+            <option value="">No department</option>{departments.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="form-row-3">
+        <Field label="Employee ID" hint={isEdit ? '' : 'Auto-generated if empty'}><input value={form.employeeId || ''} onChange={set('employeeId')} /></Field>
+        <Field label="Designation"><input value={form.designation || ''} onChange={set('designation')} /></Field>
+        <Field label="Phone"><input value={form.phone || ''} onChange={set('phone')} /></Field>
+      </div>
+      <div className="form-row">
+        <div style={{ paddingTop: 28 }}><label className="checkbox-row"><input type="checkbox" checked={Boolean(form.firstAidCertified)} onChange={set('firstAidCertified')} /> Certified first-aider</label></div>
+        <Field label="Certification expiry" error={errors.certificationExpiry}><input type="date" value={form.certificationExpiry || ''} onChange={set('certificationExpiry')} disabled={!form.firstAidCertified} /></Field>
+      </div>
+    </Modal>
+  );
+};
+
+const ResetPasswordModal = ({ open, user: target, onClose }) => {
+  const [pw, setPw] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  useEffect(() => { if (open) { setPw(''); setError(null); } }, [open]);
+  const submit = async () => {
+    if (!strongPw(pw)) return setError('At least 8 characters with a letter and a number');
+    setBusy(true);
+    try { const res = await resetUserPassword(target._id, pw); toast.success(res.data.message); onClose(); } catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
+    return undefined;
+  };
+  return (
+    <Modal open={open} onClose={onClose} busy={busy} size="sm" title={`Reset password for ${target?.name}`} description="Their current sessions will be signed out."
+      footer={<><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? <Spinner size="sm" light /> : 'Reset password'}</button></>}>
+      <Field label="New temporary password" error={error}><input type="text" value={pw} onChange={(e) => { setPw(e.target.value); setError(null); }} autoFocus autoComplete="new-password" /></Field>
+    </Modal>
+  );
+};
+
+const RowMenu = ({ target, onEdit, onReset, onToggle }) => {
+  const { user: me, can } = useAuth();
+  const [open, setOpen] = useState(false);
+  const isMe = target._id === me._id;
+  const adminLocked = target.role === 'admin' && me.role !== 'admin';
+  return (
+    <div className="dropdown" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
+      <button className="btn btn-ghost btn-xs btn-icon" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} aria-label="Actions"><MoreHorizontal size={16} /></button>
+      {open && (
+        <div className="dropdown-menu" style={{ minWidth: 200 }} onClick={(e) => e.stopPropagation()}>
+          {!adminLocked && <button className="dropdown-item" onClick={() => { setOpen(false); onEdit(); }}><Pencil size={15} /> Edit details</button>}
+          <Link className="dropdown-item" to={`/employees/${target._id}/card`}><IdCard size={15} /> ID card</Link>
+          {can('manageUsers') && !isMe && !adminLocked && (
+            <>
+              <button className="dropdown-item" onClick={() => { setOpen(false); onReset(); }}><KeyRound size={15} /> Reset password</button>
+              <div className="dropdown-divider" />
+              <button className={`dropdown-item ${target.isActive ? 'danger' : ''}`} onClick={() => { setOpen(false); onToggle(); }}>
+                {target.isActive ? <><UserX size={15} /> Deactivate</> : <><UserCheck size={15} /> Reactivate</>}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Employees = () => {
+  const { can } = useAuth();
+  const navigate = useNavigate();
+  const confirm = useConfirm();
+  const [params, setParams] = useSearchParams();
+  const [modal, setModal] = useState(null); // { type: 'create'|'edit'|'reset', user }
+  const f = {
+    search: params.get('search') || '', role: params.get('role') || '', department: params.get('department') || '',
+    isActive: params.get('isActive') || 'true', certified: params.get('certified') || '', page: Number(params.get('page')) || 1
+  };
+  const setFilter = (key, value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    if (key !== 'page') next.delete('page');
+    setParams(next, { replace: true });
+  };
+  const depts = useAsync(() => getDepartments(), [], { select: (r) => r.data.data });
+  const users = useAsync(() => getUsers(Object.fromEntries(Object.entries({ ...f, limit: LIMIT }).filter(([, v]) => v))), [params.toString()]);
+
+  const toggleActive = async (u) => {
+    const ok = await confirm({
+      title: u.isActive ? `Deactivate ${u.name}?` : `Reactivate ${u.name}?`,
+      message: u.isActive ? 'They will be signed out and unable to sign in. Their records are kept.' : 'They will be able to sign in again.',
+      confirmLabel: u.isActive ? 'Deactivate' : 'Reactivate', tone: u.isActive ? 'danger' : 'primary'
+    });
+    if (!ok) return;
+    try { const res = await setUserStatus(u._id, !u.isActive); toast.success(res.data.message); users.refresh(); } catch (err) { toast.error(errorMessage(err)); }
+  };
+
+  const rows = users.data?.data || [];
+  return (
     <div className="page-content">
-      <div className="page-header">
-        <div><h1 className="page-title">{t('nav.employees')}</h1><p className="page-subtitle">Manage workforce, certifications & digital ID cards</p></div>
-        {hasRole('doctor', 'manager') && <button className="btn btn-primary" onClick={() => requireAuth(() => setShowAdd(true))}><UserPlus size={18} /> Add Employee</button>}
-      </div>
-
-      <div className="card" style={{marginBottom:20,padding:'16px 20px'}}>
-        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-          <div style={{flex:1,minWidth:200,position:'relative'}}><Search size={16} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)'}} /><input placeholder={t('common.search')} value={search} onChange={e => setSearch(e.target.value)} style={{paddingLeft:36}} /></div>
-          <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{width:180}}><option value="">All Departments</option>{depts.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select>
-          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} style={{width:180}}><option value="">All Roles</option><option value="doctor">Doctor</option><option value="manager">Manager</option><option value="user">User</option></select>
+      <PageHeader title="People" subtitle="Accounts, roles and first-aid certifications."
+        actions={can('manageUsers') && <button className="btn btn-primary" onClick={() => setModal({ type: 'create' })}><UserPlus size={16} /> Add person</button>} />
+      <div className="card card-flush">
+        <div className="toolbar">
+          <SearchInput value={f.search} onChange={(v) => setFilter('search', v)} placeholder="Search name, email, ID…" />
+          <select value={f.role} onChange={(e) => setFilter('role', e.target.value)} aria-label="Role"><option value="">All roles</option>{['admin', 'doctor', 'manager', 'employee'].map((r) => <option key={r} value={r}>{labelize(r)}</option>)}</select>
+          <select value={f.department} onChange={(e) => setFilter('department', e.target.value)} aria-label="Department"><option value="">All departments</option>{(depts.data || []).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}</select>
+          <select value={f.certified} onChange={(e) => setFilter('certified', e.target.value)} aria-label="Certification"><option value="">Any certification</option><option value="true">Certified first-aiders</option><option value="false">Not certified</option></select>
+          <select value={f.isActive} onChange={(e) => setFilter('isActive', e.target.value)} aria-label="Status"><option value="true">Active</option><option value="false">Deactivated</option><option value="all">Everyone</option></select>
         </div>
-      </div>
-
-      {loading ? <div className="page-loader"><div className="spinner"></div></div> : (
-        <div className="table-container">
-          <table className="data-table">
-            <thead><tr><th>Employee</th><th>ID</th><th>Role</th><th>Department</th><th>Designation</th><th>Status</th><th>Certified</th><th>Actions</th></tr></thead>
-            <tbody>{users.map(u => {
-              const status = getStatus(u);
-              return (
-                <tr key={u._id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      {u.profilePhoto ? (
-                        <img src={u.profilePhoto} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
-                      ) : (
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #1e3a5f, #2d3a52)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontWeight: 700, fontSize: '0.8rem' }}>
-                          {u.name?.charAt(0)?.toUpperCase()}
+        {users.loading && !users.data && <SkeletonRows rows={10} cols={5} />}
+        {users.error && <ErrorState error={users.error} onRetry={users.reload} />}
+        {users.data && rows.length === 0 && <EmptyState icon={Users} title="No people found" />}
+        {rows.length > 0 && (
+          <div className="table-container">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Role</th><th className="hide-sm">Department</th><th>First aid</th><th className="hide-sm">Last sign-in</th><th>Status</th><th className="actions" /></tr></thead>
+              <tbody>
+                {rows.map((u) => {
+                  const certValid = u.firstAidCertified && (!u.certificationExpiry || new Date(u.certificationExpiry) > new Date());
+                  return (
+                    <tr key={u._id} className="clickable" onClick={() => navigate(`/employees/${u._id}`)}>
+                      <td>
+                        <div className="row">
+                          <span className="avatar avatar-sm">{u.profilePhoto ? <img src={u.profilePhoto} alt="" /> : initials(u.name)}</span>
+                          <div style={{ minWidth: 0 }}><div className="cell-primary truncate">{u.name}</div><div className="cell-sub truncate">{u.employeeId ? `${u.employeeId} · ` : ''}{u.email}</div></div>
                         </div>
-                      )}
-                      <span style={{ fontWeight: 600 }}>{u.name}</span>
-                    </div>
-                  </td>
-                  <td style={{ fontFamily: 'monospace', color: '#3b82f6', fontWeight: 600, fontSize: '0.82rem' }}>{u.employeeId || '—'}</td>
-                  <td><span className={`badge badge-${roleColors[u.role]}`}><Shield size={10} /> {u.role?.replace('_',' ')}</span></td>
-                  <td>{u.department?.name || '—'}</td>
-                  <td>{u.designation || '—'}</td>
-                  <td>
-                    <span className={`badge badge-${statusColors[status] || 'closed'}`} style={{ textTransform: 'capitalize' }}>
-                      {status?.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td>{u.firstAidCertified ? <Award size={16} color="var(--green-500)" /> : '—'}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" title="View Profile" onClick={() => navigate(`/employees/${u._id}`)} style={{ padding: '4px 8px' }}>
-                        <Eye size={14} />
-                      </button>
-                      <button className="btn btn-ghost btn-sm" title="View ID Card" onClick={() => navigate(`/employees/${u._id}/card`)} style={{ padding: '4px 8px' }}>
-                        <CreditCard size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}</tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Add Employee Modal */}
-      {showAdd && (
-        <div className="modal-overlay" onClick={() => setShowAdd(false)}>
-          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3 className="modal-title">Add Employee</h3><button className="modal-close" onClick={() => setShowAdd(false)}><X size={18} /></button></div>
-            <form onSubmit={handleAdd}>
-              <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: '0.82rem', color: '#3b82f6' }}>
-                💡 Employee ID and QR Code will be auto-generated after creation
-              </div>
-              <div className="form-row">
-                <div className="form-group"><label className="form-label">Full Name *</label><input required value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} /></div>
-                <div className="form-group"><label className="form-label">Email *</label><input type="email" required value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} /></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group"><label className="form-label">Password *</label><input type="password" required value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} /></div>
-                <div className="form-group"><label className="form-label">Phone</label><input value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} /></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group"><label className="form-label">Role</label><select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}><option value="employee">Employee</option><option value="manager">Manager</option><option value="doctor">Doctor</option></select></div>
-                <div className="form-group"><label className="form-label">Department</label><select value={form.department} onChange={e => setForm(f => ({...f, department: e.target.value}))}><option value="">Select</option>{depts.map(d => <option key={d._id} value={d._id}>{d.name}</option>)}</select></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group"><label className="form-label">Designation</label><input value={form.designation} onChange={e => setForm(f => ({...f, designation: e.target.value}))} /></div>
-                <div className="form-group" />
-              </div>
-              <div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setShowAdd(false)}>Cancel</button><button type="submit" className="btn btn-primary">Add Employee</button></div>
-            </form>
+                      </td>
+                      <td><span className={`badge badge-${u.role}`}>{labelize(u.role)}</span></td>
+                      <td className="hide-sm">{u.department?.name || <span className="faint">—</span>}<div className="cell-sub">{u.designation}</div></td>
+                      <td>{u.firstAidCertified ? (certValid ? <span className="badge badge-green"><BadgeCheck size={12} /> Until {formatDate(u.certificationExpiry)}</span> : <span className="badge badge-red">Expired</span>) : <span className="faint small">—</span>}</td>
+                      <td className="small muted hide-sm">{u.lastLoginAt ? timeAgo(u.lastLoginAt) : 'Never'}</td>
+                      <td><StatusBadge value={u.isActive ? 'active' : 'inactive'} label={u.isActive ? 'Active' : 'Deactivated'} /></td>
+                      <td className="actions" onClick={(e) => e.stopPropagation()}>
+                        <RowMenu target={u} onEdit={() => setModal({ type: 'edit', user: u })} onReset={() => setModal({ type: 'reset', user: u })} onToggle={() => toggleActive(u)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
+        )}
+        {users.data && <Pagination page={users.data.currentPage} pages={users.data.pages} total={users.data.total} limit={LIMIT} onChange={(p) => setFilter('page', String(p))} />}
+      </div>
+      <UserFormModal open={modal?.type === 'create' || modal?.type === 'edit'} user={modal?.type === 'edit' ? modal.user : null} departments={depts.data || []} onClose={() => setModal(null)} onSaved={() => users.refresh()} />
+      <ResetPasswordModal open={modal?.type === 'reset'} user={modal?.user} onClose={() => setModal(null)} />
     </div>
   );
 };

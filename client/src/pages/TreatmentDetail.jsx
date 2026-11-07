@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getTreatment } from '../services/api';
 import { ArrowLeft, User, Calendar, MapPin, Stethoscope, Pill, FileText } from 'lucide-react';
 import './Treatments.css';
+import { formatDate, formatDateTime } from '../utils/format';
 
 const TreatmentDetail = () => {
   const { id } = useParams();
@@ -39,7 +40,7 @@ const TreatmentDetail = () => {
             <h3 className="card-title" style={{ marginBottom: 16 }}><User size={18} /> Patient Information</h3>
             <div className="detail-row"><span className="detail-label">Employee</span><span className="detail-value">{treatment.employee?.name || treatment.employeeName}</span></div>
             <div className="detail-row"><span className="detail-label">Employee ID</span><span className="detail-value">{treatment.employee?.employeeId || '—'}</span></div>
-            <div className="detail-row"><span className="detail-label">Date</span><span className="detail-value">{new Date(treatment.treatmentDate).toLocaleDateString()}</span></div>
+            <div className="detail-row"><span className="detail-label">Date</span><span className="detail-value">{formatDate(treatment.treatmentDate)}</span></div>
             <div className="detail-row"><span className="detail-label">Time</span><span className="detail-value">{treatment.treatmentTime || '—'}</span></div>
             <div className="detail-row"><span className="detail-label">Location</span><span className="detail-value">{treatment.treatmentLocation || '—'}</span></div>
           </div>
@@ -82,8 +83,8 @@ const TreatmentDetail = () => {
           {/* Meta */}
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 16 }}><FileText size={18} /> Record Info</h3>
-            <div className="detail-row"><span className="detail-label">Created</span><span className="detail-value">{new Date(treatment.createdAt).toLocaleString()}</span></div>
-            <div className="detail-row"><span className="detail-label">Updated</span><span className="detail-value">{new Date(treatment.updatedAt).toLocaleString()}</span></div>
+            <div className="detail-row"><span className="detail-label">Created</span><span className="detail-value">{formatDateTime(treatment.createdAt)}</span></div>
+            <div className="detail-row"><span className="detail-label">Updated</span><span className="detail-value">{formatDateTime(treatment.updatedAt)}</span></div>
           </div>
         </div>
       </div>

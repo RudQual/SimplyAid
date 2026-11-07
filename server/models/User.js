@@ -178,6 +178,12 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  passwordChangedAt: {
+    type: Date
+  },
+  lastLoginAt: {
+    type: Date
   }
 }, {
   timestamps: true
@@ -189,7 +195,7 @@ userSchema.index(
   { 
     unique: true, 
     partialFilterExpression: { 
-      employeeId: { $exists: true } 
+      employeeId: { $type: 'string' } 
     } 
   }
 );
@@ -200,7 +206,7 @@ userSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      qrCodeId: { $exists: true, $ne: null }
+      qrCodeId: { $type: 'string' }
     }
   }
 );
@@ -226,11 +232,25 @@ userSchema.pre('save', async function() {
   }
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
+  // Invalidate tokens issued before a password change (not on account creation)
+  if (!this.isNew) this.passwordChangedAt = new Date();
 });
+
+userSchema.index({ company: 1, role: 1, isActive: 1 });
+userSchema.index({ company: 1, department: 1 });
 
 // Compare password method
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  if (typeof candidatePassword !== 'string' || !this.password) return false;
+  return bcrypt.compare(candidatePassword, this.password);
 };
+
+// Never serialise secrets, even if they were explicitly selected.
+userSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    delete ret.password;
+    return ret;
+  }
+});
 
 module.exports = mongoose.model('User', userSchema);

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useScanner } from '../contexts/ScannerContext';
 import { getIncidents, getDepartments } from '../services/api';
 import { Plus, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDate } from '../utils/format';
 
 const Incidents = () => {
   const { t, requireAuth } = useAuth();
@@ -96,7 +97,7 @@ const Incidents = () => {
               ) : incidents.map(inc => (
                 <tr key={inc._id} onClick={() => requireAuth(() => navigate(`/incidents/${inc._id}`))} style={{cursor:'pointer'}}>
                   <td style={{fontWeight:600,color:'var(--accent)'}}>{inc.incidentId}</td>
-                  <td>{new Date(inc.dateTime).toLocaleDateString()}</td>
+                  <td>{formatDate(inc.dateTime)}</td>
                   <td>{inc.injuredPerson?.name}</td>
                   <td>{inc.department?.name}</td>
                   <td><span className="badge badge-reported">{t(`incidents.${inc.incidentType}`)}</span></td>

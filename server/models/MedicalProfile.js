@@ -69,7 +69,7 @@ const medicalProfileSchema = new mongoose.Schema({
 });
 
 // Auto-compute risk level based on medical data
-medicalProfileSchema.pre('save', function(next) {
+medicalProfileSchema.pre('save', function() {
   this.lastUpdated = new Date();
 
   // Risk computation heuristic
@@ -91,8 +91,6 @@ medicalProfileSchema.pre('save', function(next) {
   } else {
     this.riskLevel = 'low';
   }
-
-  next();
 });
 
 // Index for efficient querying

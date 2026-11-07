@@ -1,59 +1,74 @@
 const TreatmentRecord = require('../models/TreatmentRecord');
 const FirstAidBox = require('../models/FirstAidBox');
+const Incident = require('../models/Incident');
 const User = require('../models/User');
 const { notifySafetyTeam, createAuditLog } = require('../utils/notificationService');
+const { deductForTreatment } = require('../services/stockService');
+const { ApiError, companyIdOf, isValidId, pick, escapeRegex } = require('../utils/http');
 
-// @desc    Create a treatment record + auto-deduct inventory
+const TREATMENT_FIELDS = ['employee', 'employeeName', 'incident', 'treatmentDate', 'treatmentTime', 'treatmentLocation', 'injuryType',
+  'injurySeverity', 'treatmentProvided', 'medicinesUsed', 'firstAidBoxUsed', 'remarks'];
+
+// @desc    Create a treatment record + deduct supplies from the kit used
 // @route   POST /api/treatments
-// @access  Protected (safety_officer, first_aider, admin)
+// @access  Doctor
 exports.createTreatment = async (req, res, next) => {
   try {
-    const companyId = req.user.company._id || req.user.company;
-    req.body.company = companyId;
-    req.body.firstAider = req.body.firstAider || req.user._id;
-    req.body.firstAiderName = req.body.firstAiderName || req.user.name;
-
-    // If employee name not provided, look it up
-    if (req.body.employee && !req.body.employeeName) {
-      const emp = await User.findById(req.body.employee).select('name');
-      if (emp) req.body.employeeName = emp.name;
+    const companyId = companyIdOf(req);
+    const data = pick(req.body, TREATMENT_FIELDS);
+    if (!data.employee || !isValidId(String(data.employee))) throw ApiError.badRequest('Please select the employee who was treated');
+    const emp = await User.findOne({ _id: data.employee, company: companyId }).select('name');
+    if (!emp) throw ApiError.badRequest('Employee not found');
+    data.employeeName = emp.name;
+    if (data.incident) {
+      if (!isValidId(String(data.incident)) || !(await Incident.exists({ _id: data.incident, company: companyId }))) throw ApiError.badRequest('Invalid incident');
+    } else delete data.incident;
+    if (data.firstAidBoxUsed) {
+      if (!isValidId(String(data.firstAidBoxUsed)) || !(await FirstAidBox.exists({ _id: data.firstAidBoxUsed, company: companyId }))) throw ApiError.badRequest('Invalid first aid kit');
+    } else delete data.firstAidBoxUsed;
+    if (data.medicinesUsed !== undefined) {
+      if (!Array.isArray(data.medicinesUsed)) throw ApiError.badRequest('medicinesUsed must be a list');
+      data.medicinesUsed = data.medicinesUsed.filter((m) => m && m.name).slice(0, 50).map((m) => {
+        const quantity = Number(m.quantity ?? 1);
+        if (!Number.isInteger(quantity) || quantity < 1) throw ApiError.badRequest('Medicine quantity must be a whole number of at least 1');
+        if (m.item && !isValidId(String(m.item))) throw ApiError.badRequest('Invalid medicine item');
+        return { item: m.item || undefined, name: String(m.name).slice(0, 120), quantity };
+      });
     }
 
-    const treatment = await TreatmentRecord.create(req.body);
+    const treatment = await TreatmentRecord.create({
+      ...data,
+      company: companyId,
+      firstAider: req.user._id,
+      firstAiderName: req.user.name
+    });
 
-    // Auto-deduct inventory from first aid box if provided
-    if (req.body.firstAidBoxUsed && req.body.medicinesUsed && req.body.medicinesUsed.length) {
-      const box = await FirstAidBox.findById(req.body.firstAidBoxUsed);
-      if (box) {
-        req.body.medicinesUsed.forEach(med => {
-          const boxItem = box.items.find(i =>
-            i.item.toString() === (med.item || '').toString()
-          );
-          if (boxItem) {
-            boxItem.currentQty = Math.max(0, boxItem.currentQty - (med.quantity || 1));
-          }
-        });
-        box.computeStatus();
-        await box.save();
-      }
+    let warning = null;
+    try {
+      const result = await deductForTreatment(treatment, req.user);
+      const shortfall = result ? result.transactions.reduce((sum, t) => sum + (t.shortfall || 0), 0) : 0;
+      if (shortfall) warning = `Kit stock was insufficient by ${shortfall} unit(s); the kit has been flagged for restocking.`;
+    } catch (err) {
+      console.error('Stock deduction failed for treatment', treatment.treatmentId, err.message);
+      warning = 'Supplies could not be deducted from the kit automatically. Please adjust the kit stock manually.';
     }
 
-    // Audit log
     createAuditLog({
       user: req.user._id,
       userName: req.user.name,
+      userRole: req.user.role,
       action: 'Created treatment record',
       entity: 'Treatment',
       entityId: treatment._id,
+      entityLabel: treatment.treatmentId,
       details: `Treatment ${treatment.treatmentId} for ${treatment.employeeName || 'employee'} — ${treatment.injurySeverity} severity`,
       company: companyId,
       ipAddress: req.ip
     });
 
-    // Notify safety team for serious/critical treatments
     if (['serious', 'critical'].includes(treatment.injurySeverity)) {
-      notifySafetyTeam(companyId, {
-        type: 'incident_alert',
+      await notifySafetyTeam(companyId, {
+        type: 'treatment_alert',
         title: `${treatment.injurySeverity.toUpperCase()} treatment recorded`,
         message: `${treatment.treatmentId}: ${treatment.employeeName || 'Employee'} treated for ${treatment.injuryType || 'injury'} (${treatment.injurySeverity})`,
         severity: treatment.injurySeverity === 'critical' ? 'critical' : 'warning',
@@ -68,7 +83,7 @@ exports.createTreatment = async (req, res, next) => {
       .populate('incident', 'incidentId')
       .populate('firstAidBoxUsed', 'boxId location');
 
-    res.status(201).json({ success: true, data: populated });
+    res.status(201).json({ success: true, data: populated, message: `Treatment ${treatment.treatmentId} recorded`, warning });
   } catch (error) {
     next(error);
   }
@@ -79,7 +94,7 @@ exports.createTreatment = async (req, res, next) => {
 // @access  Protected
 exports.getTreatments = async (req, res, next) => {
   try {
-    const companyId = req.user.company._id || req.user.company;
+    const companyId = companyIdOf(req);
     const { employee, severity, firstAider, startDate, endDate, search, page = 1, limit = 20 } = req.query;
 
     const filter = { company: companyId };
@@ -93,14 +108,15 @@ exports.getTreatments = async (req, res, next) => {
     }
     if (search) {
       filter.$or = [
-        { treatmentId: { $regex: search, $options: 'i' } },
-        { employeeName: { $regex: search, $options: 'i' } },
-        { treatmentProvided: { $regex: search, $options: 'i' } },
-        { injuryType: { $regex: search, $options: 'i' } }
+        { treatmentId: { $regex: escapeRegex(search), $options: 'i' } },
+        { employeeName: { $regex: escapeRegex(search), $options: 'i' } },
+        { treatmentProvided: { $regex: escapeRegex(search), $options: 'i' } },
+        { injuryType: { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const skip = (Math.max(1, parseInt(page) || 1) - 1) * safeLimit;
     const [treatments, total] = await Promise.all([
       TreatmentRecord.find(filter)
         .populate('employee', 'name employeeId profilePhoto')
@@ -109,7 +125,7 @@ exports.getTreatments = async (req, res, next) => {
         .populate('firstAidBoxUsed', 'boxId')
         .sort('-treatmentDate')
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(safeLimit),
       TreatmentRecord.countDocuments(filter)
     ]);
 
@@ -117,7 +133,7 @@ exports.getTreatments = async (req, res, next) => {
       success: true,
       count: treatments.length,
       total,
-      pages: Math.ceil(total / parseInt(limit)),
+      pages: Math.max(1, Math.ceil(total / safeLimit)),
       currentPage: parseInt(page),
       data: treatments
     });
@@ -131,7 +147,8 @@ exports.getTreatments = async (req, res, next) => {
 // @access  Protected
 exports.getTreatment = async (req, res, next) => {
   try {
-    const treatment = await TreatmentRecord.findById(req.params.id)
+    if (!isValidId(req.params.id)) throw ApiError.notFound('Treatment record not found');
+    const treatment = await TreatmentRecord.findOne({ _id: req.params.id, company: companyIdOf(req) })
       .populate('employee', 'name employeeId email phone profilePhoto department')
       .populate('firstAider', 'name email')
       .populate('incident', 'incidentId description severity')
@@ -153,7 +170,10 @@ exports.getTreatment = async (req, res, next) => {
 // @access  Protected
 exports.getEmployeeTreatments = async (req, res, next) => {
   try {
-    const treatments = await TreatmentRecord.find({ employee: req.params.employeeId })
+    const isSelf = String(req.user._id) === String(req.params.employeeId);
+    if (!isSelf && !['admin', 'doctor', 'manager'].includes(req.user.role)) throw ApiError.forbidden();
+    if (!isValidId(req.params.employeeId)) throw ApiError.notFound('Employee not found');
+    const treatments = await TreatmentRecord.find({ employee: req.params.employeeId, company: companyIdOf(req) })
       .populate('firstAider', 'name')
       .populate('incident', 'incidentId')
       .populate('medicinesUsed.item', 'name category')

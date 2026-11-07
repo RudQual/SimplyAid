@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server-tests:
+    name: Server tests
+    # mongodb-memory-server downloads a MongoDB 7 build for this distro
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      # Keep the downloaded MongoDB binary outside node_modules so it can be cached
+      MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Cache MongoDB binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('server/package-lock.json') }}
+      - run: npm ci
+      - run: npm test
+
+  client-build:
+    name: Client build
+    # The client pins @rolldown/binding-win32-x64-msvc (a workaround for
+    # npm/cli#4828), which only installs on Windows x64.
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run build

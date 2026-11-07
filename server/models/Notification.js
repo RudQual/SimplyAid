@@ -1,62 +1,23 @@
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
-  recipient: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
+  recipient: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
   type: {
     type: String,
     enum: [
-      'incident_alert',
-      'incident_update',
-      'inventory_low',
-      'inventory_alert',
-      'certification_expiry',
-      'inspection_due',
-      'report_pending',
-      'system',
-      'expiry_alert',
-      'compliance_alert',
-      'treatment_alert',
-      'prescription_alert'
+      'incident_alert', 'incident_update', 'inventory_low', 'inventory_alert', 'certification_expiry',
+      'inspection_due', 'report_pending', 'system', 'expiry_alert', 'compliance_alert',
+      'treatment_alert', 'prescription_alert'
     ],
     required: true
   },
-  title: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  titleHi: {
-    type: String,
-    trim: true
-  },
-  message: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  messageHi: {
-    type: String,
-    trim: true
-  },
-  severity: {
-    type: String,
-    enum: ['low', 'info', 'warning', 'critical'],
-    default: 'info'
-  },
-  priority: {
-    type: String,
-    enum: ['critical', 'high', 'medium', 'low'],
-    default: 'medium'
-  },
+  title: { type: String, required: true, trim: true, maxlength: 300 },
+  titleHi: { type: String, trim: true },
+  message: { type: String, required: true, trim: true, maxlength: 2000 },
+  messageHi: { type: String, trim: true },
+  severity: { type: String, enum: ['low', 'info', 'warning', 'critical'], default: 'info' },
+  priority: { type: String, enum: ['critical', 'high', 'medium', 'low'], default: 'medium' },
   category: {
     type: String,
     enum: ['inventory', 'expiry', 'compliance', 'incident', 'certification', 'treatment', 'prescription', 'system'],
@@ -64,26 +25,26 @@ const notificationSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ['Incident', 'FirstAidBox', 'User', 'Department', 'TreatmentRecord', 'Prescription', 'InventoryItem']
+    enum: ['Incident', 'FirstAidBox', 'User', 'Department', 'TreatmentRecord', 'Prescription', 'InventoryItem', 'Inspection', 'Company']
   },
-  relatedId: {
-    type: mongoose.Schema.Types.ObjectId
-  },
-  isRead: {
-    type: Boolean,
-    default: false
-  },
-  readAt: {
-    type: Date
-  },
-  archivedAt: {
-    type: Date
-  }
+  relatedId: { type: mongoose.Schema.Types.ObjectId },
+  // In-app path the notification should open, e.g. /kits/<id>
+  link: { type: String, trim: true, maxlength: 300 },
+  // Identifies the condition that produced the alert. A recipient never receives
+  // two notifications with the same key, so scheduled checks don't spam duplicates.
+  dedupeKey: { type: String, trim: true, maxlength: 300 },
+  isRead: { type: Boolean, default: false },
+  readAt: { type: Date },
+  archivedAt: { type: Date, default: null }
 }, {
   timestamps: true
 });
 
-// Index for efficient querying
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ recipient: 1, archivedAt: 1, createdAt: -1 });
+notificationSchema.index(
+  { recipient: 1, dedupeKey: 1 },
+  { unique: true, partialFilterExpression: { dedupeKey: { $type: 'string' } } }
+);
 
 module.exports = mongoose.model('Notification', notificationSchema);

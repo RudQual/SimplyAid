@@ -1,59 +1,73 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
+import { Globe, Lock, Building2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { changePassword } from '../services/api';
-import { Globe, Lock, Building2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { PageHeader, Card, Field, Spinner, Segmented } from '../components/ui';
+import { errorMessage, labelize, formatDateTime } from '../utils/format';
 
 const Settings = () => {
-  const { t, user, isGuest, lang, switchLang, requireAuth } = useAuth();
-  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const { user, lang, switchLang, updateSession } = useAuth();
+  const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [show, setShow] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
 
-  const handlePwChange = async (e) => {
+  const set = (k) => (e) => { setPw((p) => ({ ...p, [k]: e.target.value })); setErrors((x) => ({ ...x, [k]: undefined, form: undefined })); };
+
+  const submit = async (e) => {
     e.preventDefault();
-    requireAuth(async () => {
-      if (pwForm.newPassword !== pwForm.confirm) { toast.error('Passwords do not match'); return; }
-      try { await changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }); toast.success('Password changed'); setPwForm({ currentPassword: '', newPassword: '', confirm: '' }); }
-      catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
-    });
+    const er = {};
+    if (!pw.currentPassword) er.currentPassword = 'Enter your current password';
+    if (pw.newPassword.length < 8 || !/[A-Za-z]/.test(pw.newPassword) || !/\d/.test(pw.newPassword)) er.newPassword = 'At least 8 characters with a letter and a number';
+    else if (pw.newPassword === pw.currentPassword) er.newPassword = 'Choose a different password';
+    if (pw.confirm !== pw.newPassword) er.confirm = 'Passwords do not match';
+    setErrors(er);
+    if (Object.keys(er).length) return;
+    setBusy(true);
+    try {
+      const res = await changePassword({ currentPassword: pw.currentPassword, newPassword: pw.newPassword });
+      updateSession(res.data.token, res.data.data);
+      toast.success('Password updated. Other devices have been signed out.');
+      setPw({ currentPassword: '', newPassword: '', confirm: '' });
+    } catch (err) {
+      setErrors({ form: errorMessage(err, 'Could not update the password') });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="page-content">
-      <div className="page-header"><div><h1 className="page-title">{t('nav.settings')}</h1><p className="page-subtitle">Application configuration</p></div></div>
-
+    <div className="page-content" style={{ maxWidth: 1000 }}>
+      <PageHeader title="Settings" subtitle="Your account, security and display preferences." />
       <div className="grid-2">
-        <div className="card">
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}><Globe size={20} color="var(--accent)" /><h3 className="card-title" style={{margin:0}}>Language / भाषा</h3></div>
-          <div style={{display:'flex',gap:12}}>
-            <button className={`btn ${lang==='en'?'btn-primary':'btn-ghost'}`} onClick={() => switchLang('en')} style={{flex:1}}>English</button>
-            <button className={`btn ${lang==='hi'?'btn-primary':'btn-ghost'}`} onClick={() => switchLang('hi')} style={{flex:1}}>हिन्दी</button>
-          </div>
+        <div className="stack">
+          <Card title="Account" icon={Building2}>
+            <div className="detail-list" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="detail-row"><span className="detail-label">Name</span><span className="detail-value">{user.name}</span></div>
+              <div className="detail-row"><span className="detail-label">Email</span><span className="detail-value">{user.email}</span></div>
+              <div className="detail-row"><span className="detail-label">Role</span><span className="detail-value"><span className={`badge badge-${user.role}`}>{labelize(user.role)}</span></span></div>
+              <div className="detail-row"><span className="detail-label">Department</span><span className="detail-value">{user.department?.name || '—'}</span></div>
+              <div className="detail-row"><span className="detail-label">Company</span><span className="detail-value">{user.company?.name || '—'}</span></div>
+              <div className="detail-row"><span className="detail-label">Last sign-in</span><span className="detail-value">{formatDateTime(user.lastLoginAt)}</span></div>
+            </div>
+          </Card>
+          <Card title="Language / भाषा" icon={Globe} subtitle="Applies to translated labels in the interface.">
+            <Segmented value={lang} onChange={switchLang} options={[{ value: 'en', label: 'English' }, { value: 'hi', label: 'हिन्दी' }]} />
+          </Card>
         </div>
-
-        <div className="card">
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}><Building2 size={20} color="var(--info)" /><h3 className="card-title" style={{margin:0}}>Company Info</h3></div>
-          <div style={{fontSize:'0.9rem',color:'var(--text-secondary)'}}>
-            {isGuest ? (
-              <p style={{color:'var(--text-muted)',fontStyle:'italic'}}>Sign in to view your company and profile details.</p>
-            ) : (
-              <>
-                <p><strong>Company:</strong> {user?.company?.name || '-'}</p>
-                <p><strong>Role:</strong> {user?.role?.replace('_',' ')}</p>
-                <p><strong>Department:</strong> {user?.department?.name || '-'}</p>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}><Lock size={20} color="var(--warning)" /><h3 className="card-title" style={{margin:0}}>Change Password</h3></div>
-          <form onSubmit={handlePwChange}>
-            <div className="form-group"><label className="form-label">Current Password</label><input type="password" required value={pwForm.currentPassword} onChange={e => setPwForm(f => ({...f, currentPassword: e.target.value}))} /></div>
-            <div className="form-group"><label className="form-label">New Password</label><input type="password" required minLength={6} value={pwForm.newPassword} onChange={e => setPwForm(f => ({...f, newPassword: e.target.value}))} /></div>
-            <div className="form-group"><label className="form-label">Confirm New Password</label><input type="password" required value={pwForm.confirm} onChange={e => setPwForm(f => ({...f, confirm: e.target.value}))} /></div>
-            <button type="submit" className="btn btn-warning">Update Password</button>
+        <Card title="Change password" icon={Lock} subtitle="Changing your password signs you out on every other device.">
+          {errors.form && <div className="alert alert-danger mb-16">{errors.form}</div>}
+          <form onSubmit={submit} noValidate>
+            <Field label="Current password" error={errors.currentPassword}><input type={show ? 'text' : 'password'} value={pw.currentPassword} onChange={set('currentPassword')} autoComplete="current-password" /></Field>
+            <Field label="New password" error={errors.newPassword} hint="At least 8 characters, including a letter and a number."><input type={show ? 'text' : 'password'} value={pw.newPassword} onChange={set('newPassword')} autoComplete="new-password" /></Field>
+            <Field label="Confirm new password" error={errors.confirm}><input type={show ? 'text' : 'password'} value={pw.confirm} onChange={set('confirm')} autoComplete="new-password" /></Field>
+            <div className="row-between">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShow((s) => !s)}>{show ? <EyeOff size={15} /> : <Eye size={15} />} {show ? 'Hide' : 'Show'} passwords</button>
+              <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <Spinner size="sm" light /> : <><ShieldCheck size={16} /> Update password</>}</button>
+            </div>
           </form>
-        </div>
+        </Card>
       </div>
     </div>
   );

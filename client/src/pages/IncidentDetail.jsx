@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getIncident, updateIncident } from '../services/api';
-import { ArrowLeft, Clock, MapPin, User, FileText, Save, AlertTriangle } from 'lucide-react';
+import { getIncident, updateIncident, downloadForm18 } from '../services/api';
+import { errorMessage, saveBlob, formatDateTime } from '../utils/format';
+import { ArrowLeft, Clock, MapPin, User, FileText, Save, AlertTriangle, FileDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const IncidentDetail = () => {
@@ -33,13 +34,22 @@ const IncidentDetail = () => {
         daysLost: r.data.data.daysLost || 0
       }); 
     }
-    catch (e) { toast.error('Failed to load incident'); }
+    catch (e) { toast.error(errorMessage(e, 'Failed to load incident')); }
     finally { setLoading(false); }
   };
 
   const handleSave = async () => {
-    try { await updateIncident(id, editForm); toast.success('Incident updated'); setEditing(false); loadIncident(); }
-    catch (e) { toast.error('Update failed'); }
+    try { await updateIncident(id, { ...editForm, daysLost: Number(editForm.daysLost) || 0 }); toast.success('Incident updated'); setEditing(false); loadIncident(); }
+    catch (e) { toast.error(errorMessage(e, 'Update failed')); }
+  };
+
+  const handleForm18 = async () => {
+    try {
+      const res = await downloadForm18(id);
+      saveBlob(res.data, `Form18-${incident.incidentId}.pdf`);
+      toast.success('Form 18 generated');
+      loadIncident();
+    } catch (e) { toast.error(errorMessage(e, 'Could not generate Form 18')); }
   };
 
   if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
@@ -155,7 +165,7 @@ const IncidentDetail = () => {
           </div>
           <button 
             className="btn" 
-            onClick={() => navigate(`/manager-dashboard?fillIncidentId=${inc._id}`)}
+            onClick={() => navigate(`/reviews?fillIncidentId=${inc._id}`)}
             style={{
               background: '#f97316', color: '#fff', border: 'none', 
               padding: '8px 16px', borderRadius: 8, fontWeight: 700, 
@@ -173,10 +183,15 @@ const IncidentDetail = () => {
           <button className="btn btn-ghost btn-sm" onClick={() => navigate('/incidents')} style={{marginBottom:8}}><ArrowLeft size={16} /> Back to Incidents</button>
           <h1 className="page-title" style={{display:'flex',alignItems:'center',gap:12}}>
             {inc.incidentId} <span className={`badge badge-${inc.severity}`}>{t(`incidents.${inc.severity}`)}</span> <span className={`badge badge-${inc.status}`}>{t(`incidents.${inc.status}`)}</span>
-            {inc.isReportable && <span className="badge" style={{background:'rgba(239,68,68,0.15)',color:'var(--danger)'}}>REPORTABLE</span>}
+            {inc.isReportable && <span className="badge badge-red">Reportable · Form 18 {inc.form18Generated ? 'filed' : 'pending'}</span>}
           </h1>
         </div>
-        {hasRole('doctor', 'manager') && <button className="btn btn-primary" onClick={() => setEditing(true)}><FileText size={16} /> Edit Report</button>}
+        {hasRole('doctor', 'manager', 'admin') && (
+          <div className="page-actions">
+            {inc.isReportable && <button className="btn btn-secondary" onClick={handleForm18}><FileDown size={16} /> {inc.form18Generated ? 'Download Form 18' : 'Generate Form 18'}</button>}
+            <button className="btn btn-primary" onClick={() => setEditing(true)}><FileText size={16} /> Edit report</button>
+          </div>
+        )}
       </div>
 
       <div className="grid-2">
@@ -194,7 +209,7 @@ const IncidentDetail = () => {
           <div className="card">
             <h3 className="card-title" style={{marginBottom:16}}>Incident Details</h3>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px 24px',fontSize:'0.9rem'}}>
-              <div><Clock size={14} style={{verticalAlign:'middle'}} /> {new Date(inc.dateTime).toLocaleString()}</div>
+              <div><Clock size={14} style={{verticalAlign:'middle'}} /> {formatDateTime(inc.dateTime)}</div>
               <div><MapPin size={14} style={{verticalAlign:'middle'}} /> {inc.location}</div>
               <div><span style={{color:'var(--text-muted)'}}>Type:</span> {t(`incidents.${inc.incidentType}`)}</div>
               <div><span style={{color:'var(--text-muted)'}}>Days Lost:</span> {inc.daysLost}</div>
@@ -228,7 +243,7 @@ const IncidentDetail = () => {
                 <div key={i} style={{display:'flex',gap:12,paddingBottom:16,position:'relative'}}>
                   <div style={{width:12,height:12,borderRadius:'50%',background:'var(--accent)',marginTop:4,flexShrink:0,zIndex:1}}></div>
                   {i < inc.statusHistory.length-1 && <div style={{position:'absolute',left:5,top:16,width:2,height:'calc(100% - 4px)',background:'var(--border)'}}></div>}
-                  <div><div style={{fontWeight:600,fontSize:'0.85rem',textTransform:'capitalize'}}>{sh.status?.replace(/_/g,' ')}</div><div style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>{sh.changedBy?.name} · {new Date(sh.changedAt).toLocaleString()}</div>{sh.notes && <div style={{fontSize:'0.82rem',color:'var(--text-secondary)',marginTop:2}}>{sh.notes}</div>}</div>
+                  <div><div style={{fontWeight:600,fontSize:'0.85rem',textTransform:'capitalize'}}>{sh.status?.replace(/_/g,' ')}</div><div style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>{sh.changedBy?.name} · {formatDateTime(sh.changedAt)}</div>{sh.notes && <div style={{fontSize:'0.82rem',color:'var(--text-secondary)',marginTop:2}}>{sh.notes}</div>}</div>
                 </div>
               ))}
             </div>

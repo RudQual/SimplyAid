@@ -1,679 +1,484 @@
+const mongoose = require('mongoose');
+const PDFDocument = require('pdfkit');
 const Incident = require('../models/Incident');
-const Notification = require('../models/Notification');
 const User = require('../models/User');
+const Scanner = require('../models/Scanner');
+const Department = require('../models/Department');
+const FirstAidBox = require('../models/FirstAidBox');
+const { deductForIncident } = require('../services/stockService');
+const { createAlert, findRecipients, audit } = require('../utils/notificationService');
+const { departmentScope } = require('../utils/access');
+const {
+  ApiError, companyIdOf, departmentIdOf, qs, isValidId, searchRegex, parsePagination, paginated, dateRange, pick
+} = require('../utils/http');
 
-exports.createIncident = async (req, res, next) => {
-  try {
-    req.body.company = req.user.company ? (req.user.company._id || req.user.company) : null;
-    req.body.reportedBy = req.user._id;
+const SEVERITIES = ['minor', 'moderate', 'serious', 'fatal'];
+const STATUSES = ['reported', 'under_investigation', 'resolved', 'closed'];
+const OUTCOMES = ['returned_to_work', 'sent_home', 'hospitalized', 'referred_to_doctor', 'fatal', 'under_observation', 'pending_confirmation'];
 
-    // Auto-resolve department and location from scanner if provided
-    if (req.body.scanner) {
-      const Scanner = require('../models/Scanner');
-      const scanner = await Scanner.findById(req.body.scanner).populate('department', 'name');
-      if (scanner) {
-        if (!req.body.department) req.body.department = scanner.department._id || scanner.department;
-        if (!req.body.location) req.body.location = scanner.location;
-      }
-    }
+const CREATE_FIELDS = ['injuredPerson', 'dateTime', 'location', 'department', 'scanner', 'incidentType', 'injuryTypes', 'severity',
+  'description', 'causeOfInjury', 'bodyPartAffected', 'treatmentGiven', 'treatedBy', 'firstAidBoxUsed', 'itemsUsed', 'outcome',
+  'hospitalName', 'daysLost', 'witnesses', 'reportMode'];
+const UPDATE_FIELDS = ['severity', 'description', 'treatmentGiven', 'treatedBy', 'outcome', 'daysLost', 'dateOfReturn', 'rootCause',
+  'correctiveAction', 'preventiveMeasures', 'causeOfInjury', 'hospitalName', 'witnesses', 'status', 'bodyPartAffected', 'location', 'incidentType'];
+const FILL_FIELDS = ['incidentType', 'severity', 'description', 'location', 'causeOfInjury', 'bodyPartAffected', 'treatmentGiven',
+  'treatedBy', 'firstAidBoxUsed', 'itemsUsed', 'outcome', 'daysLost', 'hospitalName', 'witnesses', 'injuredPerson', 'dateTime', 'department'];
 
-    if (!req.body.department && req.user.department) {
-      req.body.department = req.user.department;
-    }
-    if (!req.body.department && req.body.company) {
-      const Department = require('../models/Department');
-      const defDept = await Department.findOne({ company: req.body.company });
-      if (defDept) req.body.department = defDept._id;
-    }
-    if (!req.body.department) {
-      const Department = require('../models/Department');
-      const anyDept = await Department.findOne({});
-      if (anyDept) req.body.department = anyDept._id;
-    }
+const severityToAlert = (s) => (s === 'fatal' ? 'critical' : s === 'serious' ? 'warning' : 'info');
 
-    const isManagerAssisted = req.body.reportMode === 'manager_assisted';
-
-    const incident = await Incident.create(req.body);
-    incident.statusHistory.push({ status: 'reported', changedBy: req.user._id, notes: isManagerAssisted ? 'Employee requested manager assistance to fill report' : 'Incident reported' });
-    await incident.save();
-
-    // --- Deduct from First Aid Box ---
-    if (incident.firstAidBoxUsed && incident.itemsUsed && incident.itemsUsed.length > 0) {
-      const FirstAidBox = require('../models/FirstAidBox');
-      const box = await FirstAidBox.findById(incident.firstAidBoxUsed).populate('items.item', 'name');
-      if (box) {
-        let boxUpdated = false;
-        let emptyItems = [];
-        
-        incident.itemsUsed.forEach(usage => {
-          const itemIndex = box.items.findIndex(i => i.item._id.toString() === usage.item.toString() || i.item.toString() === usage.item.toString());
-          if (itemIndex > -1) {
-            const boxItem = box.items[itemIndex];
-            let remaining = usage.quantity;
-
-            if (boxItem.stocks && boxItem.stocks.length > 0) {
-              boxItem.stocks.sort((a, b) => {
-                if (!a.expiryDate) return 1;
-                if (!b.expiryDate) return -1;
-                return new Date(a.expiryDate) - new Date(b.expiryDate);
-              });
-              for (const stock of boxItem.stocks) {
-                if (remaining <= 0) break;
-                const deduct = Math.min(remaining, stock.quantity);
-                stock.quantity -= deduct;
-                remaining -= deduct;
-              }
-              boxItem.stocks = boxItem.stocks.filter(s => s.quantity > 0);
-              boxItem.currentQty = boxItem.stocks.reduce((sum, s) => sum + s.quantity, 0);
-            } else {
-              boxItem.currentQty -= usage.quantity;
-              if (boxItem.currentQty < 0) boxItem.currentQty = 0;
-            }
-            boxUpdated = true;
-
-            // Check if stock became empty
-            if (boxItem.currentQty === 0) {
-              emptyItems.push(boxItem.item.name || usage.itemName || 'An item');
-            }
-          }
-        });
-        
-        if (boxUpdated) {
-          box.computeStatus();
-          await box.save();
-        }
-
-        // Notify doctors if any item became completely empty
-        if (emptyItems.length > 0) {
-          const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
-          const inventoryNotifs = doctors.map(d => ({
-            recipient: d._id, company: incident.company, type: 'inventory_alert',
-            title: `⚠️ Inventory Empty: ${box.boxId}`,
-            titleHi: `⚠️ इन्वेंटरी खाली: ${box.boxId}`,
-            message: `Stock is completely empty for: ${emptyItems.join(', ')} in box ${box.boxId} after incident ${incident.incidentId}.`,
-            severity: 'critical', priority: 'high', category: 'inventory',
-            relatedModel: 'FirstAidBox', relatedId: box._id
-          }));
-          if (inventoryNotifs.length) await Notification.insertMany(inventoryNotifs);
-        }
-      }
-    }
-
-    // --- Department Tree Notifications ---
-    // 1. Notify all managers of the incident's department
-    const deptManagerFilter = {
-      company: req.body.company,
-      role: 'manager',
-      isActive: true
-    };
-    // Try to find managers specifically for this department, fallback to all managers
-    const deptManagers = await User.find({ ...deptManagerFilter, department: req.body.department });
-    const allManagers = deptManagers.length > 0
-      ? deptManagers
-      : await User.find(deptManagerFilter);
-
-    // 2. Notify workers in the same department
-    const deptWorkers = await User.find({
-      company: req.body.company,
-      department: req.body.department,
-      role: { $in: ['user', 'worker', 'employee'] },
-      isActive: true,
-      _id: { $ne: req.user._id } // Don't notify the reporter
-    });
-
-    let notifications;
-    if (isManagerAssisted) {
-      notifications = allManagers.map(u => ({
-        recipient: u._id, company: req.body.company, type: 'report_pending',
-        title: `🚨 Action Required: Fill Incident Report for ${incident.injuredPerson?.name || 'an employee'}`,
-        titleHi: `🚨 कार्रवाई आवश्यक: कर्मचारी की घटना रिपोर्ट भरें`,
-        message: `Employee ${incident.injuredPerson?.name} (${incident.injuredPerson?.employeeId || 'N/A'}) was unable to fill the report themselves. Please visit them on-site and fill report ${incident.incidentId}.`,
-        severity: 'warning',
-        priority: 'high',
-        category: 'incident',
-        relatedModel: 'Incident', relatedId: incident._id
-      }));
-    } else {
-      // Manager notifications
-      const managerNotifs = allManagers.map(u => ({
-        recipient: u._id, company: req.body.company, type: 'incident_alert',
-        title: `New ${incident.severity} incident reported`,
-        titleHi: `नई ${incident.severity} घटना रिपोर्ट`,
-        message: `${incident.incidentId}: ${incident.description.substring(0, 100)}`,
-        severity: incident.severity === 'fatal' ? 'critical' : incident.severity === 'serious' ? 'warning' : 'info',
-        relatedModel: 'Incident', relatedId: incident._id
-      }));
-
-      // Worker notifications (awareness)
-      const workerNotifs = deptWorkers.map(u => ({
-        recipient: u._id, company: req.body.company, type: 'incident_alert',
-        title: `⚠️ Incident reported in your department`,
-        titleHi: `⚠️ आपके विभाग में घटना रिपोर्ट`,
-        message: `${incident.incidentId}: A ${incident.severity} incident has been reported. Stay alert.`,
-        severity: 'info',
-        relatedModel: 'Incident', relatedId: incident._id
-      }));
-
-      notifications = [...managerNotifs, ...workerNotifs];
-    }
-
-    if (notifications.length) await Notification.insertMany(notifications);
-
-    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name').populate('scanner', 'name location');
-    res.status(201).json({ success: true, data: populated });
-  } catch (error) { next(error); }
+/** Restrict which incidents the current user may see. */
+const visibilityFilter = (req) => {
+  const filter = { company: companyIdOf(req) };
+  const scope = departmentScope(req);
+  if (scope) filter.department = scope;
+  if (req.user.role === 'employee') {
+    filter.$or = [{ reportedBy: req.user._id }];
+    if (req.user.employeeId) filter.$or.push({ 'injuredPerson.employeeId': req.user.employeeId });
+  }
+  return filter;
 };
 
-// @desc    SOS Emergency — instant empty report sent to immediate manager
-// @route   POST /api/incidents/sos
-// @access  Private (any authenticated user)
-exports.createSOSIncident = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user._id)
-      .populate('company', 'name code')
-      .populate('department', 'name code');
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    const companyId = user.company?._id || user.company;
-    const departmentId = user.department?._id || user.department;
-
-    // Find the user's immediate manager:
-    // 1. First try to match by the user's reportingManager name field
-    // 2. Then try managers in the same department
-    // 3. Fallback to any manager in the company
-    let immediateManager = null;
-
-    if (user.reportingManager) {
-      immediateManager = await User.findOne({
-        company: companyId,
-        role: 'manager',
-        name: user.reportingManager,
-        isActive: true
-      });
-    }
-
-    if (!immediateManager) {
-      immediateManager = await User.findOne({
-        company: companyId,
-        department: departmentId,
-        role: 'manager',
-        isActive: true
-      });
-    }
-
-    if (!immediateManager) {
-      immediateManager = await User.findOne({
-        company: companyId,
-        role: 'manager',
-        isActive: true
-      });
-    }
-
-    // Create the emergency incident with minimal auto-filled data
-    const incident = await Incident.create({
-      company: companyId,
-      reportedBy: user._id,
-      injuredPerson: {
-        name: user.name,
-        employeeId: user.employeeId,
-        department: departmentId,
-        gender: user.gender,
-        designation: user.designation
-      },
-      dateTime: new Date(),
-      location: user.factoryLocation || 'Unknown — SOS triggered',
-      department: departmentId,
-      incidentType: 'injury',
-      severity: 'serious',
-      description: `🚨 SOS EMERGENCY triggered by ${user.name} (${user.employeeId || 'N/A'}). Immediate assistance required. Details pending.`,
-      outcome: 'pending_confirmation',
-      status: 'reported',
-      reportMode: 'self_reported',
-      pendingManagerAssist: true
-    });
-
-    incident.statusHistory.push({
-      status: 'reported',
-      changedBy: user._id,
-      notes: 'SOS Emergency — auto-generated. Employee needs immediate help.'
-    });
-    await incident.save();
-
-    // Send high-priority notification to the immediate manager
-    const notifications = [];
-
-    if (immediateManager) {
-      notifications.push({
-        recipient: immediateManager._id,
-        company: companyId,
-        type: 'report_pending',
-        title: `🆘 SOS EMERGENCY from ${user.name}!`,
-        titleHi: `🆘 ${user.name} से आपातकालीन SOS!`,
-        message: `${user.name} (${user.employeeId || 'N/A'}) — ${user.designation || 'Employee'} in ${user.department?.name || 'Unknown Dept'} has triggered an SOS emergency at ${user.factoryLocation || 'unknown location'}. Report ${incident.incidentId} created. Go to them immediately!`,
-        messageHi: `${user.name} (${user.employeeId || 'N/A'}) ने ${user.factoryLocation || 'अज्ञात स्थान'} पर आपातकालीन SOS दबाया है। रिपोर्ट ${incident.incidentId}। तुरंत जाएं!`,
-        severity: 'critical',
-        priority: 'high',
-        category: 'incident',
-        relatedModel: 'Incident',
-        relatedId: incident._id
-      });
-    }
-
-    // Also notify all other managers in the department for awareness
-    const otherManagers = await User.find({
-      company: companyId,
-      role: 'manager',
-      isActive: true,
-      _id: { $ne: immediateManager?._id }
-    });
-
-    otherManagers.forEach(mgr => {
-      notifications.push({
-        recipient: mgr._id,
-        company: companyId,
-        type: 'incident_alert',
-        title: `🆘 SOS: ${user.name} needs emergency help`,
-        titleHi: `🆘 SOS: ${user.name} को आपातकालीन सहायता चाहिए`,
-        message: `Emergency incident ${incident.incidentId} auto-created. ${user.name} (${user.designation || 'Employee'}) at ${user.factoryLocation || 'unknown'}.`,
-        severity: 'critical',
-        relatedModel: 'Incident',
-        relatedId: incident._id
-      });
-    });
-
-    // Notify doctors too
-    const doctors = await User.find({
-      company: companyId,
-      role: 'doctor',
-      isActive: true
-    });
-
-    doctors.forEach(doc => {
-      notifications.push({
-        recipient: doc._id,
-        company: companyId,
-        type: 'incident_alert',
-        title: `🆘 SOS: Medical emergency — ${user.name}`,
-        titleHi: `🆘 SOS: चिकित्सा आपातकाल — ${user.name}`,
-        message: `${user.name} (${user.employeeId || 'N/A'}) triggered SOS at ${user.factoryLocation || 'unknown'}. Incident ${incident.incidentId}. Possible injury — prepare for medical response.`,
-        severity: 'critical',
-        relatedModel: 'Incident',
-        relatedId: incident._id
-      });
-    });
-
-    if (notifications.length) await Notification.insertMany(notifications);
-
-    const populated = await Incident.findById(incident._id)
-      .populate('reportedBy', 'name employeeId')
-      .populate('department', 'name');
-
-    res.status(201).json({
-      success: true,
-      data: populated,
-      message: `SOS sent! ${immediateManager ? `${immediateManager.name} has been notified.` : 'All managers have been notified.'}`
-    });
-  } catch (error) { next(error); }
+const loadIncident = async (req, id, { forManager = false } = {}) => {
+  if (!isValidId(id)) throw ApiError.notFound('Incident not found');
+  const incident = await Incident.findOne({ _id: id, ...visibilityFilter(req) });
+  if (!incident) throw ApiError.notFound('Incident not found');
+  if (forManager && req.user.role === 'manager' && departmentIdOf(req) && String(incident.department) !== String(departmentIdOf(req))) {
+    throw ApiError.forbidden('Managers can only act on incidents in their own department');
+  }
+  return incident;
 };
 
-exports.getIncidents = async (req, res, next) => {
-  try {
-    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
-    const { department, severity, status, incidentType, outcome, location, startDate, endDate, search, forwardedToDoctor, page = 1, limit = 20 } = req.query;
-    const filter = { company: companyId };
-    
-    if (location) filter.location = location;
-
-    // Managers can only see incidents for their own department
-    if (req.user.role === 'manager' && req.user.department) {
-      filter.department = req.user.department._id || req.user.department;
-    } else if (department) {
-      filter.department = department;
+/** Validate references and sanitise the itemsUsed list. */
+const normalizeRefs = async (req, data) => {
+  const companyId = companyIdOf(req);
+  if (data.department !== undefined && data.department !== null && data.department !== '') {
+    if (!isValidId(String(data.department)) || !(await Department.exists({ _id: data.department, company: companyId }))) {
+      throw ApiError.badRequest('Invalid department');
     }
-    if (severity) filter.severity = severity;
-    if (status) filter.status = status;
-    if (outcome) filter.outcome = outcome;
-    if (incidentType) filter.incidentType = incidentType;
-    if (forwardedToDoctor !== undefined) filter.forwardedToDoctor = forwardedToDoctor === 'true';
-    if (startDate || endDate) { filter.dateTime = {}; if (startDate) filter.dateTime.$gte = new Date(startDate); if (endDate) filter.dateTime.$lte = new Date(endDate); }
-    if (search) filter.$or = [{ incidentId: { $regex: search, $options: 'i' } }, { description: { $regex: search, $options: 'i' } }, { 'injuredPerson.name': { $regex: search, $options: 'i' } }];
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await Incident.countDocuments(filter);
-    const incidents = await Incident.find(filter).populate('reportedBy', 'name').populate('department', 'name code').populate('treatedBy', 'name').sort('-dateTime').skip(skip).limit(parseInt(limit));
-    res.json({ success: true, count: incidents.length, total, pages: Math.ceil(total / parseInt(limit)), currentPage: parseInt(page), data: incidents });
-  } catch (error) { next(error); }
+  } else if (data.department === '') delete data.department;
+  if (data.firstAidBoxUsed) {
+    if (!isValidId(String(data.firstAidBoxUsed)) || !(await FirstAidBox.exists({ _id: data.firstAidBoxUsed, company: companyId }))) {
+      throw ApiError.badRequest('Invalid first aid kit');
+    }
+  } else if (data.firstAidBoxUsed === '') data.firstAidBoxUsed = undefined;
+  if (data.treatedBy) {
+    if (!isValidId(String(data.treatedBy)) || !(await User.exists({ _id: data.treatedBy, company: companyId }))) throw ApiError.badRequest('Invalid "treated by" user');
+  } else if (data.treatedBy === '') data.treatedBy = undefined;
+  if (data.itemsUsed !== undefined) {
+    if (!Array.isArray(data.itemsUsed)) throw ApiError.badRequest('itemsUsed must be a list');
+    data.itemsUsed = data.itemsUsed
+      .filter((u) => u && (u.item || u.itemName))
+      .slice(0, 50)
+      .map((u) => {
+        const quantity = Number(u.quantity ?? 1);
+        if (!Number.isInteger(quantity) || quantity < 1 || quantity > 1000) throw ApiError.badRequest('Quantity used must be a whole number between 1 and 1000');
+        if (u.item && !isValidId(String(u.item))) throw ApiError.badRequest('Invalid item in itemsUsed');
+        return { item: u.item || undefined, itemName: u.itemName ? String(u.itemName).slice(0, 120) : undefined, quantity };
+      });
+  }
+  if (data.severity !== undefined && !SEVERITIES.includes(data.severity)) throw ApiError.badRequest('Invalid severity');
+  if (data.outcome !== undefined && !OUTCOMES.includes(data.outcome)) throw ApiError.badRequest('Invalid outcome');
+  if (data.status !== undefined && !STATUSES.includes(data.status)) throw ApiError.badRequest('Invalid status');
+  if (data.daysLost !== undefined) {
+    const d = Number(data.daysLost);
+    if (!Number.isFinite(d) || d < 0 || d > 3650) throw ApiError.badRequest('Days lost must be between 0 and 3650');
+    data.daysLost = d;
+  }
+  if (data.dateTime !== undefined) {
+    const dt = new Date(data.dateTime);
+    if (Number.isNaN(dt.getTime())) throw ApiError.badRequest('Invalid incident date');
+    if (dt > new Date(Date.now() + 5 * 60000)) throw ApiError.badRequest('Incident date cannot be in the future');
+  }
+  return data;
 };
 
-exports.getIncident = async (req, res, next) => {
+const deductSafely = async (incident, user) => {
   try {
-    const incident = await Incident.findById(req.params.id)
-      .populate('reportedBy', 'name email').populate('company', 'name').populate('department', 'name code')
-      .populate('injuredPerson.department', 'name').populate('treatedBy', 'name')
-      .populate('firstAidBoxUsed', 'boxId location').populate('itemsUsed.item', 'name category')
-      .populate('statusHistory.changedBy', 'name').populate('closedBy', 'name');
-    if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
-    res.json({ success: true, data: incident });
-  } catch (error) { next(error); }
+    const result = await deductForIncident(incident, user);
+    const shortfall = result ? result.transactions.reduce((s, t) => s + (t.shortfall || 0), 0) : 0;
+    return shortfall ? `Kit stock was insufficient by ${shortfall} unit(s); the kit has been flagged for restocking.` : null;
+  } catch (err) {
+    console.error('Stock deduction failed for incident', incident.incidentId, err.message);
+    return 'Supplies could not be deducted from the kit automatically. Please adjust the kit stock manually.';
+  }
 };
 
-  exports.updateIncident = async (req, res, next) => {
-  try {
-    const incident = await Incident.findById(req.params.id);
-    if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
-    if (req.body.status && req.body.status !== incident.status) {
-      incident.statusHistory.push({ status: req.body.status, changedBy: req.user._id, notes: req.body.statusNotes || `Status changed to ${req.body.status}` });
-      if (req.body.status === 'closed') { incident.closedBy = req.user._id; incident.closedAt = new Date(); }
-    }
-    
-    let outcomeChanged = false;
-    if (req.body.outcome && req.body.outcome !== incident.outcome) {
-      outcomeChanged = true;
-    }
+const populateIncident = (id) => Incident.findById(id)
+  .populate('reportedBy', 'name email').populate('company', 'name').populate('department', 'name code')
+  .populate('injuredPerson.department', 'name').populate('treatedBy', 'name')
+  .populate('firstAidBoxUsed', 'boxId location').populate('itemsUsed.item', 'name category unit')
+  .populate('statusHistory.changedBy', 'name').populate('closedBy', 'name').populate('scanner', 'name location')
+  .populate('managerConfirmation.confirmedBy', 'name').populate('doctorReview.reviewedBy', 'name');
 
-    const fields = ['severity','description','treatmentGiven','treatedBy','outcome','daysLost','dateOfReturn','rootCause','correctiveAction','preventiveMeasures','causeOfInjury','hospitalName','witnesses','status','bodyPartAffected','location'];
-    fields.forEach(f => { if (req.body[f] !== undefined) incident[f] = req.body[f]; });
+// @route POST /api/incidents
+exports.createIncident = async (req, res) => {
+  const companyId = companyIdOf(req);
+  const data = await normalizeRefs(req, pick(req.body, CREATE_FIELDS));
 
-    if (outcomeChanged) {
-      if (incident.outcome === 'referred_to_doctor') {
-        incident.forwardedToDoctor = true;
-        const User = require('../models/User');
-        const Notification = require('../models/Notification');
-        const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
-        const notifications = doctors.map(d => ({
-          recipient: d._id, company: incident.company, type: 'incident_alert',
-          title: `Incident ${incident.incidentId} requires medical attention`,
-          message: `The incident outcome has been updated. Please review.`,
-          severity: 'warning',
-          relatedModel: 'Incident', relatedId: incident._id
-        }));
-        if (notifications.length) await Notification.insertMany(notifications);
-      } else if (incident.outcome === 'returned_to_work') {
-        incident.forwardedToDoctor = false;
-        if (incident.status !== 'resolved' && incident.status !== 'closed') {
-          incident.status = 'resolved';
-          incident.statusHistory.push({
-            status: 'resolved',
-            changedBy: req.user._id,
-            notes: 'Resolved automatically as outcome was updated to returned to work.'
-          });
-        }
-      }
+  if (data.scanner) {
+    if (!isValidId(String(data.scanner))) throw ApiError.badRequest('Invalid scanner');
+    const scanner = await Scanner.findOne({ _id: data.scanner, company: companyId });
+    if (!scanner) throw ApiError.badRequest('Invalid scanner');
+    if (!data.department) data.department = scanner.department;
+    if (!data.location) data.location = scanner.location;
+  }
+  if (!data.department && departmentIdOf(req)) data.department = departmentIdOf(req);
+  if (!data.department) throw ApiError.badRequest('Department is required');
+  if (!data.injuredPerson || !data.injuredPerson.name) {
+    data.injuredPerson = { ...(data.injuredPerson || {}), name: req.user.name, employeeId: req.user.employeeId };
+  }
+  data.injuredPerson = pick(data.injuredPerson, ['name', 'employeeId', 'department', 'age', 'gender', 'designation']);
+  if (data.reportMode && !['self_reported', 'manager_assisted'].includes(data.reportMode)) delete data.reportMode;
+  const isManagerAssisted = data.reportMode === 'manager_assisted';
+  if (!data.outcome) data.outcome = 'pending_confirmation';
+
+  const incident = new Incident({
+    ...data,
+    company: companyId,
+    reportedBy: req.user._id,
+    pendingManagerAssist: isManagerAssisted,
+    statusHistory: [{ status: 'reported', changedBy: req.user._id, notes: isManagerAssisted ? 'Employee requested manager assistance to fill report' : 'Incident reported' }]
+  });
+  await incident.save();
+
+  const warning = await deductSafely(incident, req.user);
+
+  // Notifications: department managers (or all managers if none), doctors for serious/fatal
+  let managers = await User.find({ company: companyId, role: 'manager', department: incident.department, isActive: true }).select('_id');
+  if (!managers.length) managers = await User.find({ company: companyId, role: 'manager', isActive: true }).select('_id');
+  const managerIds = managers.map((m) => m._id).filter((id) => String(id) !== String(req.user._id));
+  const base = { company: companyId, relatedModel: 'Incident', relatedId: incident._id };
+
+  if (isManagerAssisted) {
+    await createAlert({
+      ...base, recipients: managerIds, type: 'report_pending', severity: 'warning', priority: 'high',
+      title: `Action required: fill incident report for ${incident.injuredPerson.name}`,
+      message: `${incident.injuredPerson.name} (${incident.injuredPerson.employeeId || 'N/A'}) needs help filling report ${incident.incidentId}. Please visit them on-site.`
+    });
+  } else {
+    await createAlert({
+      ...base, recipients: managerIds, type: 'incident_alert', severity: severityToAlert(incident.severity),
+      title: `New ${incident.severity} incident reported`,
+      message: `${incident.incidentId}: ${incident.description.substring(0, 140)}`
+    });
+    if (['serious', 'fatal'].includes(incident.severity)) {
+      const doctors = await findRecipients(companyId, { roles: ['doctor', 'admin'] });
+      await createAlert({
+        ...base, recipients: doctors, type: 'incident_alert', severity: severityToAlert(incident.severity),
+        title: `${incident.severity === 'fatal' ? 'Fatal' : 'Serious'} incident ${incident.incidentId}`,
+        message: `${incident.injuredPerson.name} at ${incident.location}. ${incident.isReportable ? 'Reportable under Section 88 — Form 18 required.' : ''}`
+      });
     }
+  }
 
-    await incident.save();
-    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code');
-    res.json({ success: true, data: populated });
-  } catch (error) { next(error); }
+  audit(req, { action: 'Reported incident', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId, details: `${incident.severity} ${incident.incidentType} at ${incident.location}` });
+  const populated = await populateIncident(incident._id);
+  res.status(201).json({ success: true, data: populated, message: `Incident ${incident.incidentId} reported`, warning });
 };
 
-exports.getIncidentStats = async (req, res, next) => {
-  try {
-    const mongoose = require('mongoose');
-    let companyObjId = null;
-    if (req.user.company) {
-      const idStr = req.user.company._id ? req.user.company._id.toString() : req.user.company.toString();
-      companyObjId = new mongoose.Types.ObjectId(idStr);
-    }
+// @route POST /api/incidents/sos
+exports.createSOSIncident = async (req, res) => {
+  const user = req.user;
+  const companyId = companyIdOf(req);
+  const departmentId = departmentIdOf(req);
+  if (!departmentId) throw ApiError.badRequest('Your account has no department. Ask your administrator to assign one so SOS can be routed.');
 
-    const baseMatch = { company: companyObjId };
-    if (req.user.role === 'manager' && req.user.department) {
-      const deptIdStr = req.user.department._id ? req.user.department._id.toString() : req.user.department.toString();
-      baseMatch.department = new mongoose.Types.ObjectId(deptIdStr);
-    }
+  let immediateManager = null;
+  if (user.reportingManager) {
+    immediateManager = await User.findOne({ company: companyId, role: 'manager', name: user.reportingManager, isActive: true });
+  }
+  if (!immediateManager) immediateManager = await User.findOne({ company: companyId, department: departmentId, role: 'manager', isActive: true });
+  if (!immediateManager) immediateManager = await User.findOne({ company: companyId, role: 'manager', isActive: true });
 
-    const startDate = new Date(); startDate.setDate(startDate.getDate() - parseInt(req.query.period || '30'));
-    
-    const [stats] = await Incident.aggregate([
+  const location = user.factoryLocation || 'Unknown — SOS triggered';
+  const incident = await Incident.create({
+    company: companyId,
+    reportedBy: user._id,
+    injuredPerson: { name: user.name, employeeId: user.employeeId, department: departmentId, gender: user.gender, designation: user.designation },
+    dateTime: new Date(),
+    location,
+    department: departmentId,
+    incidentType: 'injury',
+    severity: 'serious',
+    description: `SOS EMERGENCY triggered by ${user.name} (${user.employeeId || 'N/A'}). Immediate assistance required. Details pending.`,
+    outcome: 'pending_confirmation',
+    status: 'reported',
+    reportMode: 'self_reported',
+    pendingManagerAssist: true,
+    statusHistory: [{ status: 'reported', changedBy: user._id, notes: 'SOS Emergency — auto-generated. Employee needs immediate help.' }]
+  });
+
+  const base = { company: companyId, relatedModel: 'Incident', relatedId: incident._id, severity: 'critical', priority: 'critical' };
+  const deptName = (user.department && user.department.name) || 'Unknown department';
+  if (immediateManager) {
+    await createAlert({
+      ...base, recipients: [immediateManager._id], type: 'report_pending',
+      title: `SOS EMERGENCY from ${user.name}`,
+      message: `${user.name} (${user.employeeId || 'N/A'}), ${user.designation || 'Employee'} in ${deptName}, triggered SOS at ${location}. Report ${incident.incidentId}. Go to them immediately.`
+    });
+  }
+  const others = (await findRecipients(companyId, { roles: ['manager', 'doctor', 'admin'] }))
+    .filter((id) => !immediateManager || String(id) !== String(immediateManager._id));
+  await createAlert({
+    ...base, recipients: others, type: 'incident_alert',
+    title: `SOS: ${user.name} needs emergency help`,
+    message: `Emergency incident ${incident.incidentId} at ${location}. Prepare for medical response.`
+  });
+
+  audit(req, { action: 'Triggered SOS', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId });
+  const populated = await populateIncident(incident._id);
+  res.status(201).json({
+    success: true,
+    data: populated,
+    message: `SOS sent! ${immediateManager ? `${immediateManager.name} has been notified.` : 'All managers have been notified.'}`
+  });
+};
+
+// @route GET /api/incidents
+exports.getIncidents = async (req, res) => {
+  const filter = visibilityFilter(req);
+  const department = qs(req.query.department);
+  if (department && !filter.department) { if (!isValidId(department)) throw ApiError.badRequest('Invalid department'); filter.department = department; }
+  const map = { severity: 'severity', status: 'status', outcome: 'outcome', incidentType: 'incidentType', location: 'location' };
+  Object.entries(map).forEach(([q, f]) => { const v = qs(req.query[q]); if (v) filter[f] = v; });
+  const fwd = qs(req.query.forwardedToDoctor);
+  if (fwd !== undefined) filter.forwardedToDoctor = fwd === 'true';
+  const pending = qs(req.query.pendingManagerAssist);
+  if (pending !== undefined) filter.pendingManagerAssist = pending === 'true';
+  const reportable = qs(req.query.reportable);
+  if (reportable !== undefined) filter.isReportable = reportable === 'true';
+  const range = dateRange(req.query);
+  if (range) filter.dateTime = range;
+  const search = qs(req.query.search);
+  if (search) {
+    const rx = searchRegex(search);
+    const or = [{ incidentId: rx }, { description: rx }, { 'injuredPerson.name': rx }, { location: rx }];
+    filter.$and = [...(filter.$and || []), { $or: or }];
+  }
+
+  const pg = parsePagination(req.query, { defaultLimit: 20 });
+  const [incidents, total] = await Promise.all([
+    Incident.find(filter).populate('reportedBy', 'name').populate('department', 'name code').populate('treatedBy', 'name')
+      .populate('firstAidBoxUsed', 'boxId').populate('managerConfirmation.confirmedBy', 'name')
+      .sort('-dateTime').skip(pg.skip).limit(pg.limit),
+    Incident.countDocuments(filter)
+  ]);
+  res.json(paginated(incidents, total, pg));
+};
+
+// @route GET /api/incidents/:id
+exports.getIncident = async (req, res) => {
+  const incident = await loadIncident(req, req.params.id);
+  res.json({ success: true, data: await populateIncident(incident._id) });
+};
+
+// @route PUT /api/incidents/:id
+exports.updateIncident = async (req, res) => {
+  const incident = await loadIncident(req, req.params.id, { forManager: true });
+  const data = await normalizeRefs(req, pick(req.body, UPDATE_FIELDS));
+  const before = { status: incident.status, outcome: incident.outcome, severity: incident.severity };
+
+  if (data.status && data.status !== incident.status) {
+    incident.statusHistory.push({ status: data.status, changedBy: req.user._id, notes: req.body.statusNotes ? String(req.body.statusNotes).slice(0, 500) : `Status changed to ${data.status.replace(/_/g, ' ')}` });
+    if (data.status === 'closed') { incident.closedBy = req.user._id; incident.closedAt = new Date(); }
+  }
+  const outcomeChanged = data.outcome && data.outcome !== incident.outcome;
+  incident.set(data);
+
+  if (outcomeChanged && incident.outcome === 'referred_to_doctor') {
+    incident.forwardedToDoctor = true;
+    const doctors = await findRecipients(incident.company, { roles: ['doctor'] });
+    await createAlert({
+      company: incident.company, recipients: doctors, type: 'incident_alert', severity: 'warning',
+      title: `Incident ${incident.incidentId} requires medical attention`, message: 'The incident was referred to a doctor. Please review.',
+      relatedModel: 'Incident', relatedId: incident._id
+    });
+  } else if (outcomeChanged && incident.outcome === 'returned_to_work') {
+    incident.forwardedToDoctor = false;
+    if (!['resolved', 'closed'].includes(incident.status)) {
+      incident.status = 'resolved';
+      incident.statusHistory.push({ status: 'resolved', changedBy: req.user._id, notes: 'Resolved automatically: employee returned to work.' });
+    }
+  }
+  await incident.save();
+  audit(req, {
+    action: 'Updated incident', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId,
+    changes: Object.fromEntries(Object.entries(before).filter(([k, v]) => v !== incident[k]).map(([k, v]) => [k, { from: v, to: incident[k] }]))
+  });
+  res.json({ success: true, data: await populateIncident(incident._id), message: 'Incident updated' });
+};
+
+// @route GET /api/incidents/stats/summary
+exports.getIncidentStats = async (req, res) => {
+  const vis = visibilityFilter(req);
+  const baseMatch = { company: new mongoose.Types.ObjectId(String(vis.company)) };
+  if (vis.department) baseMatch.department = new mongoose.Types.ObjectId(String(vis.department));
+  if (vis.$or) baseMatch.$or = vis.$or;
+  const period = Math.min(3650, Math.max(1, parseInt(qs(req.query.period), 10) || 30));
+  const startDate = new Date(Date.now() - period * 86400000);
+  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const [[stats], deptStats, monthlyTrend, typeBreakdown] = await Promise.all([
+    Incident.aggregate([
       { $match: { ...baseMatch, dateTime: { $gte: startDate } } },
-      { $group: { _id: null, total: { $sum: 1 }, minor: { $sum: { $cond: [{ $eq: ['$severity', 'minor'] }, 1, 0] } }, moderate: { $sum: { $cond: [{ $eq: ['$severity', 'moderate'] }, 1, 0] } }, serious: { $sum: { $cond: [{ $eq: ['$severity', 'serious'] }, 1, 0] } }, fatal: { $sum: { $cond: [{ $eq: ['$severity', 'fatal'] }, 1, 0] } }, totalDaysLost: { $sum: '$daysLost' }, reportable: { $sum: { $cond: ['$isReportable', 1, 0] } }, openCases: { $sum: { $cond: [{ $in: ['$status', ['reported', 'under_investigation']] }, 1, 0] } } } }
-    ]);
-    const deptStats = await Incident.aggregate([
+      { $group: {
+        _id: null, total: { $sum: 1 },
+        minor: { $sum: { $cond: [{ $eq: ['$severity', 'minor'] }, 1, 0] } },
+        moderate: { $sum: { $cond: [{ $eq: ['$severity', 'moderate'] }, 1, 0] } },
+        serious: { $sum: { $cond: [{ $eq: ['$severity', 'serious'] }, 1, 0] } },
+        fatal: { $sum: { $cond: [{ $eq: ['$severity', 'fatal'] }, 1, 0] } },
+        totalDaysLost: { $sum: '$daysLost' },
+        reportable: { $sum: { $cond: ['$isReportable', 1, 0] } },
+        openCases: { $sum: { $cond: [{ $in: ['$status', ['reported', 'under_investigation']] }, 1, 0] } }
+      } }
+    ]),
+    Incident.aggregate([
       { $match: { ...baseMatch, dateTime: { $gte: startDate } } },
       { $group: { _id: '$department', count: { $sum: 1 }, serious: { $sum: { $cond: [{ $in: ['$severity', ['serious', 'fatal']] }, 1, 0] } } } },
       { $lookup: { from: 'departments', localField: '_id', foreignField: '_id', as: 'department' } },
       { $unwind: '$department' }, { $sort: { count: -1 } }
-    ]);
-    const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const monthlyTrend = await Incident.aggregate([
+    ]),
+    Incident.aggregate([
       { $match: { ...baseMatch, dateTime: { $gte: sixMonthsAgo } } },
       { $group: { _id: { year: { $year: '$dateTime' }, month: { $month: '$dateTime' } }, count: { $sum: 1 }, serious: { $sum: { $cond: [{ $in: ['$severity', ['serious', 'fatal']] }, 1, 0] } } } },
       { $sort: { '_id.year': 1, '_id.month': 1 } }
-    ]);
-    const typeBreakdown = await Incident.aggregate([
+    ]),
+    Incident.aggregate([
       { $match: { ...baseMatch, dateTime: { $gte: startDate } } },
       { $group: { _id: '$incidentType', count: { $sum: 1 } } }
-    ]);
-    res.json({ success: true, data: { summary: stats || { total: 0, minor: 0, moderate: 0, serious: 0, fatal: 0, totalDaysLost: 0, reportable: 0, openCases: 0 }, departmentStats: deptStats, monthlyTrend, typeBreakdown } });
-  } catch (error) { next(error); }
+    ])
+  ]);
+  res.json({
+    success: true,
+    data: {
+      summary: stats || { total: 0, minor: 0, moderate: 0, serious: 0, fatal: 0, totalDaysLost: 0, reportable: 0, openCases: 0 },
+      departmentStats: deptStats,
+      monthlyTrend,
+      typeBreakdown
+    }
+  });
 };
 
-exports.managerConfirm = async (req, res, next) => {
-  try {
-    const incident = await Incident.findById(req.params.id);
-    if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
+// @route PUT /api/incidents/:id/manager-confirm
+exports.managerConfirm = async (req, res) => {
+  const incident = await loadIncident(req, req.params.id, { forManager: true });
+  if (['resolved', 'closed'].includes(incident.status)) throw ApiError.conflict('This incident is already resolved');
+  const notes = req.body.notes ? String(req.body.notes).slice(0, 2000) : '';
+  if (req.body.outcome !== undefined) {
+    if (!OUTCOMES.includes(req.body.outcome)) throw ApiError.badRequest('Invalid outcome');
+    incident.outcome = req.body.outcome;
+  }
+  incident.managerConfirmation = { confirmedBy: req.user._id, notes, confirmedAt: new Date() };
+  incident.status = 'under_investigation';
+  incident.statusHistory.push({ status: 'under_investigation', changedBy: req.user._id, notes: `Manager confirmed on-site. Outcome: ${incident.outcome.replace(/_/g, ' ')}. ${notes}` });
 
-    incident.managerConfirmation = {
-      confirmedBy: req.user._id,
-      notes: req.body.notes || '',
-      confirmedAt: new Date()
-    };
-    
-    // Update outcome if provided by manager
-    if (req.body.outcome) {
-      incident.outcome = req.body.outcome;
-    }
-
-    incident.status = 'under_investigation';
-    incident.statusHistory.push({
-      status: 'under_investigation',
-      changedBy: req.user._id,
-      notes: `Manager confirmed on-site. Outcome: ${req.body.outcome || incident.outcome}. Notes: ${req.body.notes || 'None'}`
-    });
-    
-    // Only forward and notify doctors if referred
-    if (incident.outcome === 'referred_to_doctor') {
-      incident.forwardedToDoctor = true;
-      const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
-      const Notification = require('../models/Notification');
-      const notifications = doctors.map(d => ({
-        recipient: d._id, company: incident.company, type: 'incident_alert',
-        title: `Incident ${incident.incidentId} requires medical attention`,
-        message: `Manager has referred an employee to the doctor. Please review.`,
-        severity: 'warning',
-        relatedModel: 'Incident', relatedId: incident._id
-      }));
-      if (notifications.length) await Notification.insertMany(notifications);
-    } else {
-      incident.forwardedToDoctor = false;
-      // If they returned to work, we can just resolve it directly since no doctor is needed
-      if (incident.outcome === 'returned_to_work') {
-        incident.status = 'resolved';
-        incident.statusHistory.push({
-          status: 'resolved',
-          changedBy: req.user._id,
-          notes: 'Resolved automatically as worker returned to work.'
-        });
-      }
-    }
-
-    // Deduct from First Aid Box if applicable (stocks-aware, FIFO by expiry)
-    if (incident.firstAidBoxUsed && incident.itemsUsed && incident.itemsUsed.length > 0) {
-      const FirstAidBox = require('../models/FirstAidBox');
-      const box = await FirstAidBox.findById(incident.firstAidBoxUsed);
-      if (box) {
-        let boxUpdated = false;
-        incident.itemsUsed.forEach(usage => {
-          const itemIndex = box.items.findIndex(i => i.item.toString() === usage.item.toString());
-          if (itemIndex > -1) {
-            const boxItem = box.items[itemIndex];
-            let remaining = usage.quantity;
-
-            if (boxItem.stocks && boxItem.stocks.length > 0) {
-              // Sort stocks by expiry date (soonest first = FIFO)
-              boxItem.stocks.sort((a, b) => {
-                if (!a.expiryDate) return 1;
-                if (!b.expiryDate) return -1;
-                return new Date(a.expiryDate) - new Date(b.expiryDate);
-              });
-
-              // Deduct from each stock in order
-              for (const stock of boxItem.stocks) {
-                if (remaining <= 0) break;
-                const deduct = Math.min(remaining, stock.quantity);
-                stock.quantity -= deduct;
-                remaining -= deduct;
-              }
-
-              // Remove depleted stocks (quantity = 0)
-              boxItem.stocks = boxItem.stocks.filter(s => s.quantity > 0);
-
-              // Update legacy currentQty to match total stocks
-              boxItem.currentQty = boxItem.stocks.reduce((sum, s) => sum + s.quantity, 0);
-            } else {
-              // Legacy: just deduct from currentQty
-              boxItem.currentQty -= usage.quantity;
-              if (boxItem.currentQty < 0) boxItem.currentQty = 0;
-            }
-            boxUpdated = true;
-          }
-        });
-        if (boxUpdated) await box.save();
-      }
-    }
-
-    await incident.save();
-
-    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code').populate('managerConfirmation.confirmedBy', 'name');
-    res.json({ success: true, data: populated });
-  } catch (error) { next(error); }
-};
-
-exports.doctorReview = async (req, res, next) => {
-  try {
-    const incident = await Incident.findById(req.params.id);
-    if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
-
-    incident.doctorReview = {
-      reviewedBy: req.user._id,
-      notes: req.body.notes || '',
-      reviewedAt: new Date()
-    };
-    incident.status = 'resolved';
-    incident.statusHistory.push({
-      status: 'resolved',
-      changedBy: req.user._id,
-      notes: `Doctor reviewed. Notes: ${req.body.notes || 'None'}`
-    });
-    // Deduct from First Aid Box if applicable (stocks-aware, FIFO by expiry)
-    if (incident.firstAidBoxUsed && incident.itemsUsed && incident.itemsUsed.length > 0) {
-      const FirstAidBox = require('../models/FirstAidBox');
-      const box = await FirstAidBox.findById(incident.firstAidBoxUsed);
-      if (box) {
-        let boxUpdated = false;
-        incident.itemsUsed.forEach(usage => {
-          const itemIndex = box.items.findIndex(i => i.item.toString() === usage.item.toString());
-          if (itemIndex > -1) {
-            const boxItem = box.items[itemIndex];
-            let remaining = usage.quantity;
-
-            if (boxItem.stocks && boxItem.stocks.length > 0) {
-              // Sort stocks by expiry date (soonest first = FIFO)
-              boxItem.stocks.sort((a, b) => {
-                if (!a.expiryDate) return 1;
-                if (!b.expiryDate) return -1;
-                return new Date(a.expiryDate) - new Date(b.expiryDate);
-              });
-
-              // Deduct from each stock in order
-              for (const stock of boxItem.stocks) {
-                if (remaining <= 0) break;
-                const deduct = Math.min(remaining, stock.quantity);
-                stock.quantity -= deduct;
-                remaining -= deduct;
-              }
-
-              // Remove depleted stocks (quantity = 0)
-              boxItem.stocks = boxItem.stocks.filter(s => s.quantity > 0);
-
-              // Update legacy currentQty to match total stocks
-              boxItem.currentQty = boxItem.stocks.reduce((sum, s) => sum + s.quantity, 0);
-            } else {
-              // Legacy: just deduct from currentQty
-              boxItem.currentQty -= usage.quantity;
-              if (boxItem.currentQty < 0) boxItem.currentQty = 0;
-            }
-            boxUpdated = true;
-          }
-        });
-        if (boxUpdated) {
-          box.computeStatus();
-          await box.save();
-        }
-      }
-    }
-
-    await incident.save();
-
-    const populated = await Incident.findById(incident._id).populate('reportedBy', 'name').populate('department', 'name code').populate('doctorReview.reviewedBy', 'name');
-    res.json({ success: true, data: populated });
-  } catch (error) { next(error); }
-};
-
-// @desc    Manager fills all details for a pending-assist incident
-// @route   PUT /api/incidents/:id/manager-fill
-// @access  Protected (manager)
-exports.managerFillIncident = async (req, res, next) => {
-  try {
-    const incident = await Incident.findById(req.params.id);
-    if (!incident) return res.status(404).json({ success: false, message: 'Incident not found' });
-    if (!incident.pendingManagerAssist) {
-      return res.status(400).json({ success: false, message: 'This incident does not require manager assistance' });
-    }
-
-    // Apply all the filled details from the manager
-    const fillableFields = [
-      'incidentType', 'severity', 'description', 'location', 'causeOfInjury',
-      'bodyPartAffected', 'treatmentGiven', 'treatedBy', 'firstAidBoxUsed',
-      'itemsUsed', 'outcome', 'daysLost', 'hospitalName', 'witnesses',
-      'injuredPerson', 'dateTime', 'department'
-    ];
-    fillableFields.forEach(f => { if (req.body[f] !== undefined) incident[f] = req.body[f]; });
-
-    // Mark incident as manager-filled and confirm
-    incident.pendingManagerAssist = false;
-    incident.managerConfirmation = {
-      confirmedBy: req.user._id,
-      notes: req.body.managerNotes || 'Manager visited on-site and filled the incident report.',
-      confirmedAt: new Date()
-    };
+  if (incident.outcome === 'referred_to_doctor') {
     incident.forwardedToDoctor = true;
-    incident.status = 'under_investigation';
-    incident.statusHistory.push({
-      status: 'under_investigation',
-      changedBy: req.user._id,
-      notes: `Manager visited on-site and completed incident report. ${req.body.managerNotes || ''}`
-    });
-    await incident.save();
-
-    // Notify doctors
-    const doctors = await User.find({ company: incident.company, role: 'doctor', isActive: true });
-    const notifications = doctors.map(d => ({
-      recipient: d._id, company: incident.company, type: 'incident_alert',
-      title: `Incident ${incident.incidentId} filed by manager`,
-      message: `Manager has visited on-site and completed the incident report for ${incident.injuredPerson?.name}. Please review.`,
-      severity: 'warning',
-      category: 'incident',
+    const doctors = await findRecipients(incident.company, { roles: ['doctor'] });
+    await createAlert({
+      company: incident.company, recipients: doctors, type: 'incident_alert', severity: 'warning',
+      title: `Incident ${incident.incidentId} requires medical attention`, message: 'A manager referred the employee to a doctor. Please review.',
       relatedModel: 'Incident', relatedId: incident._id
-    }));
-    if (notifications.length) await Notification.insertMany(notifications);
+    });
+  } else {
+    incident.forwardedToDoctor = false;
+    if (incident.outcome === 'returned_to_work') {
+      incident.status = 'resolved';
+      incident.statusHistory.push({ status: 'resolved', changedBy: req.user._id, notes: 'Resolved automatically: employee returned to work.' });
+    }
+  }
+  await incident.save();
+  const warning = await deductSafely(incident, req.user);
+  audit(req, { action: 'Manager confirmed incident', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId, details: notes });
+  res.json({ success: true, data: await populateIncident(incident._id), message: 'Incident confirmed', warning });
+};
 
-    const populated = await Incident.findById(incident._id)
-      .populate('reportedBy', 'name').populate('department', 'name code')
-      .populate('managerConfirmation.confirmedBy', 'name');
-    res.json({ success: true, data: populated });
-  } catch (error) { next(error); }
+// @route PUT /api/incidents/:id/doctor-review
+exports.doctorReview = async (req, res) => {
+  const incident = await loadIncident(req, req.params.id);
+  if (['resolved', 'closed'].includes(incident.status) && incident.doctorReview && incident.doctorReview.reviewedAt) {
+    throw ApiError.conflict('This incident has already been reviewed');
+  }
+  const notes = req.body.notes ? String(req.body.notes).slice(0, 4000) : '';
+  incident.doctorReview = { reviewedBy: req.user._id, notes, reviewedAt: new Date() };
+  incident.status = 'resolved';
+  incident.statusHistory.push({ status: 'resolved', changedBy: req.user._id, notes: `Doctor reviewed. ${notes}` });
+  await incident.save();
+  const warning = await deductSafely(incident, req.user);
+  audit(req, { action: 'Doctor reviewed incident', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId });
+  res.json({ success: true, data: await populateIncident(incident._id), message: 'Incident reviewed and resolved', warning });
+};
+
+// @route PUT /api/incidents/:id/manager-fill
+exports.managerFillIncident = async (req, res) => {
+  const incident = await loadIncident(req, req.params.id, { forManager: true });
+  if (!incident.pendingManagerAssist) throw ApiError.badRequest('This incident does not require manager assistance');
+  const data = await normalizeRefs(req, pick(req.body, FILL_FIELDS));
+  if (data.injuredPerson) data.injuredPerson = pick(data.injuredPerson, ['name', 'employeeId', 'department', 'age', 'gender', 'designation']);
+  if (incident.stockDeducted) { delete data.itemsUsed; delete data.firstAidBoxUsed; }
+  incident.set(data);
+  incident.pendingManagerAssist = false;
+  const notes = req.body.managerNotes ? String(req.body.managerNotes).slice(0, 2000) : 'Manager visited on-site and filled the incident report.';
+  incident.managerConfirmation = { confirmedBy: req.user._id, notes, confirmedAt: new Date() };
+  incident.forwardedToDoctor = true;
+  incident.status = 'under_investigation';
+  incident.statusHistory.push({ status: 'under_investigation', changedBy: req.user._id, notes: `Manager completed the incident report on-site. ${notes}` });
+  await incident.save();
+  const warning = await deductSafely(incident, req.user);
+
+  const doctors = await findRecipients(incident.company, { roles: ['doctor'] });
+  await createAlert({
+    company: incident.company, recipients: doctors, type: 'incident_alert', severity: 'warning',
+    title: `Incident ${incident.incidentId} filed by manager`,
+    message: `The incident report for ${incident.injuredPerson.name} was completed on-site. Please review.`,
+    relatedModel: 'Incident', relatedId: incident._id
+  });
+  audit(req, { action: 'Manager filled incident report', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId });
+  res.json({ success: true, data: await populateIncident(incident._id), message: 'Incident report completed', warning });
+};
+
+// @route GET /api/incidents/:id/form18 — Form 18 (Section 88) accident notice as PDF; marks it generated
+exports.generateForm18 = async (req, res) => {
+  const incident = await loadIncident(req, req.params.id);
+  const full = await populateIncident(incident._id);
+  if (!incident.form18Generated) {
+    await Incident.updateOne({ _id: incident._id }, { $set: { form18Generated: true, form18GeneratedDate: new Date() } });
+    audit(req, { action: 'Generated Form 18', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId });
+  }
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="Form18-${incident.incidentId}.pdf"`);
+  doc.pipe(res);
+  doc.fontSize(16).text('FORM No. 18', { align: 'center' });
+  doc.fontSize(10).text('(Prescribed under Section 88 of the Factories Act, 1948)', { align: 'center' });
+  doc.fontSize(12).text('Report of Accident / Dangerous Occurrence', { align: 'center' }).moveDown(1.5);
+  const row = (label, value) => {
+    doc.font('Helvetica-Bold').fontSize(10).text(`${label}: `, { continued: true }).font('Helvetica').text(value == null || value === '' ? '—' : String(value));
+    doc.moveDown(0.3);
+  };
+  const ip = full.injuredPerson || {};
+  row('1. Name of factory', full.company && full.company.name);
+  row('2. Incident reference', full.incidentId);
+  row('3. Date and time of accident', new Date(full.dateTime).toLocaleString('en-IN'));
+  row('4. Place / department', `${full.location} — ${full.department ? full.department.name : ''}`);
+  row('5. Name of injured person', ip.name);
+  row('6. Employee ID', ip.employeeId);
+  row('7. Age / gender', [ip.age, ip.gender].filter(Boolean).join(' / '));
+  row('8. Designation', ip.designation);
+  row('9. Nature of incident', `${full.incidentType} — severity: ${full.severity}`);
+  row('10. Body parts affected', (full.bodyPartAffected || []).join(', '));
+  row('11. Cause of injury', full.causeOfInjury);
+  row('12. Description', full.description);
+  row('13. First aid / treatment given', full.treatmentGiven);
+  row('14. Outcome', (full.outcome || '').replace(/_/g, ' '));
+  row('15. Hospital (if any)', full.hospitalName);
+  row('16. Days lost', full.daysLost);
+  row('17. Witnesses', (full.witnesses || []).join(', '));
+  row('18. Root cause', full.rootCause);
+  row('19. Corrective action', full.correctiveAction);
+  doc.moveDown(2);
+  doc.fontSize(10).text(`Generated by SimplyAID on ${new Date().toLocaleString('en-IN')} by ${req.user.name}.`);
+  doc.moveDown(3).text('Signature of Manager / Occupier: ______________________________');
+  doc.end();
 };

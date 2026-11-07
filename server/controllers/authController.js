@@ -3,342 +3,148 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const { generateEmployeeId } = require('../utils/employeeIdGenerator');
 const { generateQrCode } = require('../utils/qrService');
+const { createAuditLog, audit } = require('../utils/notificationService');
+const { demoLoginEnabled, selfSignupEnabled } = require('../config/env');
+const { normalizeRole } = require('../config/roles');
+const { ApiError } = require('../utils/http');
 
-// Generate JWT
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
-  });
+const PASSWORD_RULE = 'Password must be at least 8 characters and include a letter and a number';
+const isStrongPassword = (pw) => typeof pw === 'string' && pw.length >= 8 && pw.length <= 128 && /[A-Za-z]/.test(pw) && /\d/.test(pw);
+
+const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, {
+  algorithm: 'HS256',
+  expiresIn: process.env.JWT_EXPIRE || '7d'
+});
+
+const sendAuthResponse = (res, user, statusCode = 200, message) => {
+  const data = user.toJSON();
+  data.role = normalizeRole(data.role);
+  delete data.qrCodeData;
+  res.status(statusCode).json({ success: true, token: signToken(user._id), data, message });
 };
 
-// Helper: get default company for self-registration
-const getDefaultCompany = async () => {
-  const company = await Company.findOne({ isActive: true }).sort({ createdAt: 1 });
-  return company ? company._id : null;
-};
-
-// Helper: login response — generates token and sends user data
-const sendAuthResponse = (res, user, statusCode = 200) => {
-  const token = generateToken(user._id);
-  user.password = undefined;
-  res.status(statusCode).json({
-    success: true,
-    token,
-    data: user
-  });
-};
-
-// @desc    Register a new user (admin-created)
-// @route   POST /api/auth/register
-// @access  Admin only (or first user = auto admin)
-exports.register = async (req, res, next) => {
+const attachQr = async (user) => {
   try {
-    const { name, email, password, role, company, department, employeeId, phone, designation } = req.body;
-
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User with this email already exists'
-      });
-    }
-
-    // Verify company exists
-    const companyDoc = await Company.findById(company);
-    if (!companyDoc) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid company ID'
-      });
-    }
-
-    // Auto-generate employee ID if not provided
-    const autoEmployeeId = employeeId || await generateEmployeeId(company);
-
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role: role || 'employee',
-      company,
-      department,
-      employeeId: autoEmployeeId,
-      phone,
-      designation
-    });
-
-    // Generate QR code for the new employee
-    try {
-      const qrData = await generateQrCode(user);
-      user.qrCodeId = qrData.qrCodeId;
-      user.qrCodeData = qrData.qrCodeData;
-      user.qrCodeGeneratedAt = qrData.qrCodeGeneratedAt;
-      await user.save();
-    } catch (qrErr) {
-      console.error('QR generation failed (non-blocking):', qrErr.message);
-    }
-
-    // Don't return password
-    user.password = undefined;
-
-    res.status(201).json({
-      success: true,
-      data: user,
-      message: 'User registered successfully'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Self sign-up (public)
-// @route   POST /api/auth/signup
-// @access  Public
-exports.signup = async (req, res, next) => {
-  try {
-    const { name, email, password, employeeId, role } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide name, email and password'
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters'
-      });
-    }
-
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'An account with this email already exists'
-      });
-    }
-
-    // Auto-assign default company
-    const defaultCompany = await getDefaultCompany();
-
-    // Auto-generate employee ID for self-signup
-    const autoEmpId = defaultCompany ? await generateEmployeeId(defaultCompany) : undefined;
-
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role: ['doctor', 'manager', 'employee'].includes(role) ? role : 'employee',
-      company: defaultCompany,
-      employeeId: employeeId || autoEmpId
-    });
-
-    // Generate QR code for the new employee
-    try {
-      const qrData = await generateQrCode(user);
-      user.qrCodeId = qrData.qrCodeId;
-      user.qrCodeData = qrData.qrCodeData;
-      user.qrCodeGeneratedAt = qrData.qrCodeGeneratedAt;
-      await user.save();
-    } catch (qrErr) {
-      console.error('QR generation failed (non-blocking):', qrErr.message);
-    }
-
-    // Populate company for response
-    await user.populate('company', 'name code');
-
-    sendAuthResponse(res, user, 201);
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
-exports.login = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and password'
-      });
-    }
-
-    // Find user and include password for comparison
-    const user = await User.findOne({ email })
-      .select('+password')
-      .populate('company', 'name code')
-      .populate('department', 'name code');
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-
-    if (!user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'Account is deactivated. Contact your administrator.'
-      });
-    }
-
-
-
-    // Check password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-
-    sendAuthResponse(res, user);
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-
-// @desc    Get current user profile
-// @route   GET /api/auth/me
-// @access  Private
-exports.getMe = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user._id)
-      .populate('company', 'name code')
-      .populate('department', 'name code');
-
-    res.json({
-      success: true,
-      data: user
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Change password
-// @route   PUT /api/auth/change-password
-// @access  Private
-exports.changePassword = async (req, res, next) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide current and new password'
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'New password must be at least 6 characters'
-      });
-    }
-
-    const user = await User.findById(req.user._id).select('+password');
-    const isMatch = await user.comparePassword(currentPassword);
-
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: 'Current password is incorrect'
-      });
-    }
-
-    user.password = newPassword;
+    const qr = await generateQrCode(user);
+    user.qrCodeId = qr.qrCodeId;
+    user.qrCodeData = qr.qrCodeData;
+    user.qrCodeGeneratedAt = qr.qrCodeGeneratedAt;
     await user.save();
-
-    res.json({
-      success: true,
-      message: 'Password updated successfully'
-    });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    // The account is still usable; the QR can be regenerated from the profile.
+    console.error('QR generation failed for new user:', err.message);
   }
 };
 
-// @desc    Quick login for demo (no password required)
-// @route   POST /api/auth/quick-login
-// @access  Public (development/demo only)
-exports.quickLogin = async (req, res, next) => {
-  try {
-    // Block in production
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        success: false,
-        message: 'Quick login is disabled in production'
-      });
-    }
-
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide an email'
-      });
-    }
-
-    const user = await User.findOne({ email })
-      .populate('company', 'name code')
-      .populate('department', 'name code');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No account found with this email'
-      });
-    }
-
-    if (!user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'Account is deactivated'
-      });
-    }
-
-    sendAuthResponse(res, user);
-  } catch (error) {
-    next(error);
-  }
+// @route GET /api/auth/config  (public) — tells the login page which options are available
+exports.getAuthConfig = (req, res) => {
+  res.json({ success: true, data: { demoLogin: demoLoginEnabled(), selfSignup: selfSignupEnabled(), passwordRule: PASSWORD_RULE } });
 };
 
-// @desc    Get all demo accounts for quick-access panel
-// @route   GET /api/auth/demo-accounts
-// @access  Public (development/demo only)
-exports.getDemoAccounts = async (req, res, next) => {
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        success: false,
-        message: 'Demo accounts endpoint is disabled in production'
-      });
-    }
+// @route POST /api/auth/signup  (public) — self-registration as an employee of an existing company
+exports.signup = async (req, res) => {
+  if (!selfSignupEnabled()) throw ApiError.forbidden('Self sign-up is disabled. Ask your administrator to create an account.');
+  const { name, email, password, companyCode } = req.body;
+  if (typeof name !== 'string' || !name.trim()) throw ApiError.badRequest('Name is required');
+  if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email.trim())) throw ApiError.badRequest('A valid email is required');
+  if (!isStrongPassword(password)) throw ApiError.badRequest(PASSWORD_RULE);
+  if (typeof companyCode !== 'string' || !companyCode.trim()) throw ApiError.badRequest('Company code is required');
 
-    const users = await User.find({ isActive: true })
-      .select('name email role designation department employeeId')
-      .populate('department', 'name code')
-      .sort({ role: 1, name: 1 });
+  const company = await Company.findOne({ code: companyCode.trim().toUpperCase(), isActive: { $ne: false } });
+  if (!company) throw ApiError.badRequest('Unknown company code');
 
-    res.json({
-      success: true,
-      data: users
-    });
-  } catch (error) {
-    next(error);
-  }
+  const normalizedEmail = email.trim().toLowerCase();
+  if (await User.exists({ email: normalizedEmail })) throw ApiError.conflict('An account with this email already exists');
+
+  // Self sign-up always creates an employee account; roles are assigned by administrators.
+  const user = await User.create({
+    name: name.trim().slice(0, 100),
+    email: normalizedEmail,
+    password,
+    role: 'employee',
+    company: company._id,
+    employeeId: await generateEmployeeId(company._id)
+  });
+  await attachQr(user);
+  await user.populate('company', 'name code');
+  createAuditLog({ user: user._id, userName: user.name, userRole: 'employee', company: company._id, action: 'Signed up', entity: 'Auth', entityId: user._id, entityLabel: user.email, ipAddress: req.ip });
+  sendAuthResponse(res, user, 201, 'Account created');
 };
+
+// @route POST /api/auth/login
+exports.login = async (req, res) => {
+  const { email, password } = req.body;
+  if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+    throw ApiError.badRequest('Please provide email and password');
+  }
+  const user = await User.findOne({ email: email.trim().toLowerCase() })
+    .select('+password')
+    .populate('company', 'name code')
+    .populate('department', 'name code');
+
+  // Same message for unknown email and wrong password (no account enumeration)
+  if (!user || !(await user.comparePassword(password))) throw ApiError.unauthorized('Invalid email or password');
+  if (!user.isActive) throw ApiError.unauthorized('Account is deactivated. Contact your administrator.');
+
+  user.lastLoginAt = new Date();
+  await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: user.lastLoginAt } });
+  if (user.company) {
+    createAuditLog({ user: user._id, userName: user.name, userRole: normalizeRole(user.role), company: user.company._id, action: 'Signed in', entity: 'Auth', entityId: user._id, entityLabel: user.email, ipAddress: req.ip });
+  }
+  sendAuthResponse(res, user);
+};
+
+// @route POST /api/auth/logout — tokens are stateless; this records the event for the activity log
+exports.logout = async (req, res) => {
+  audit(req, { action: 'Signed out', entity: 'Auth', entityId: req.user._id, entityLabel: req.user.email });
+  res.json({ success: true, message: 'Signed out' });
+};
+
+// @route GET /api/auth/me
+exports.getMe = async (req, res) => {
+  const data = req.user.toJSON();
+  delete data.qrCodeData;
+  res.json({ success: true, data });
+};
+
+// @route PUT /api/auth/change-password
+exports.changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (typeof currentPassword !== 'string' || !currentPassword) throw ApiError.badRequest('Current password is required');
+  if (!isStrongPassword(newPassword)) throw ApiError.badRequest(PASSWORD_RULE);
+  if (currentPassword === newPassword) throw ApiError.badRequest('New password must be different from the current password');
+
+  const user = await User.findById(req.user._id).select('+password').populate('company', 'name code').populate('department', 'name code');
+  if (!(await user.comparePassword(currentPassword))) throw ApiError.badRequest('Current password is incorrect');
+  user.password = newPassword;
+  await user.save();
+  audit(req, { action: 'Changed password', entity: 'Auth', entityId: user._id, entityLabel: user.email });
+  // Old tokens are now invalid — return a fresh one so this session continues.
+  sendAuthResponse(res, user, 200, 'Password updated');
+};
+
+// @route POST /api/auth/quick-login  (demo only — requires ENABLE_DEMO_LOGIN=true, never in production)
+exports.quickLogin = async (req, res) => {
+  if (!demoLoginEnabled()) throw ApiError.notFound('Not found');
+  const { email } = req.body;
+  if (typeof email !== 'string' || !email.trim()) throw ApiError.badRequest('Please provide an email');
+  const user = await User.findOne({ email: email.trim().toLowerCase() }).populate('company', 'name code').populate('department', 'name code');
+  if (!user) throw ApiError.notFound('No account found with this email');
+  if (!user.isActive) throw ApiError.unauthorized('Account is deactivated');
+  sendAuthResponse(res, user);
+};
+
+// @route GET /api/auth/demo-accounts  (demo only)
+exports.getDemoAccounts = async (req, res) => {
+  if (!demoLoginEnabled()) throw ApiError.notFound('Not found');
+  const users = await User.find({ isActive: true })
+    .select('name email role designation department employeeId')
+    .populate('department', 'name code')
+    .sort({ role: 1, name: 1 })
+    .limit(100)
+    .lean();
+  res.json({ success: true, data: users.map((u) => ({ ...u, role: normalizeRole(u.role) })) });
+};
+
+exports.isStrongPassword = isStrongPassword;
+exports.PASSWORD_RULE = PASSWORD_RULE;

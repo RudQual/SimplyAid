@@ -15,9 +15,22 @@ const Notification = require('../models/Notification');
 const QrScanLog = require('../models/QrScanLog');
 const Inspection = require('../models/Inspection');
 const AuditLog = require('../models/AuditLog');
+const StockTransaction = require('../models/StockTransaction');
+const Counter = require('../models/Counter');
+const ExpirySchedule = require('../models/ExpirySchedule');
+const MedicalProfile = require('../models/MedicalProfile');
+const { runMigrations } = require('../config/migrations');
+
+// Deterministic pseudo-random generator so every seed produces the same data
+let seedState = 20261107;
+const rand = () => { seedState = (seedState * 1664525 + 1013904223) % 4294967296; return seedState / 4294967296; };
+const DAY = 24 * 60 * 60 * 1000;
 
 const seedDB = async () => {
   try {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+      throw new Error('Refusing to wipe a production database. Set ALLOW_PRODUCTION_SEED=true to override.');
+    }
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ Connected to MongoDB for seeding');
 
@@ -32,7 +45,11 @@ const seedDB = async () => {
     await Notification.deleteMany({});
     await QrScanLog.deleteMany({});
     await Inspection.deleteMany({});
-    await AuditLog.deleteMany({});
+    await AuditLog.collection.deleteMany({});
+    await StockTransaction.collection.deleteMany({});
+    await Counter.deleteMany({});
+    await ExpirySchedule.deleteMany({});
+    await MedicalProfile.deleteMany({});
     console.log('🗑️  Cleared ALL existing data');
 
     // ── 1. Create Company ──
@@ -70,6 +87,16 @@ const seedDB = async () => {
     // ══════════════════════════════════════════════
 
     const users = await User.create([
+
+      // ════════════════════════════════════════════
+      //  ADMINISTRATOR — system & user management
+      // ════════════════════════════════════════════
+      {
+        name: 'Asha Verma', email: 'admin@simplyaid.com', password: PASS,
+        role: 'admin', company: company._id, department: dept('ADMIN')._id,
+        employeeId: 'ADM001', phone: '9876543200', designation: 'System Administrator',
+        factoryLocation: 'Main Office', shiftTiming: 'General (9AM-6PM)'
+      },
 
       // ════════════════════════════════════════════
       //  DOCTORS (3) — Medical staff across factory
@@ -391,87 +418,186 @@ const seedDB = async () => {
 
     // ── 4. Create Inventory Items (Indian Factories Rules) ──
     const items = await InventoryItem.insertMany([
-      { name: 'Sterilized Dressing (Small)', nameHi: 'विसंक्रमित ड्रेसिंग (छोटा)', category: 'dressing', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: true },
-      { name: 'Sterilized Dressing (Medium)', nameHi: 'विसंक्रमित ड्रेसिंग (मध्यम)', category: 'dressing', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: true },
-      { name: 'Sterilized Dressing (Large)', nameHi: 'विसंक्रमित ड्रेसिंग (बड़ा)', category: 'dressing', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: true },
-      { name: 'Sterilized Burn Dressing', nameHi: 'विसंक्रमित जले का ड्रेसिंग', category: 'dressing', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 2, classB: 4, classC: 8 }, isGlobal: true },
-      { name: 'Roller Bandage (5cm)', nameHi: 'रोलर बैंडेज (5 सेमी)', category: 'bandage', unit: 'rolls', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: true },
-      { name: 'Roller Bandage (10cm)', nameHi: 'रोलर बैंडेज (10 सेमी)', category: 'bandage', unit: 'rolls', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: true },
-      { name: 'Triangular Bandage', nameHi: 'तिकोना बैंडेज', category: 'bandage', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: true },
-      { name: 'Adhesive Plaster Roll', nameHi: 'चिपकने वाला प्लास्टर रोल', category: 'bandage', unit: 'rolls', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 2, classC: 4 }, isGlobal: true },
-      { name: 'Cetrimide Solution (1%)', nameHi: 'सेट्रिमाइड सॉल्यूशन (1%)', category: 'antiseptic', unit: 'bottles', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 2, classC: 4 }, isGlobal: true },
-      { name: 'Cotton Wool Packets', nameHi: 'कॉटन वूल पैकेट', category: 'dressing', unit: 'packets', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: true },
-      { name: 'Aspirin Tablets (300mg)', nameHi: 'एस्पिरिन गोलियाँ (300mg)', category: 'medicine', unit: 'strips', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 2, classB: 4, classC: 8 }, isGlobal: true },
-      { name: 'Sterilized Eye Pads', nameHi: 'विसंक्रमित आई पैड', category: 'dressing', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 4, classB: 4, classC: 8 }, isGlobal: true },
-      { name: 'Eye Wash Bottle (500cc)', nameHi: 'आई वॉश बोतल (500cc)', category: 'equipment', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 1, classC: 2 }, isGlobal: true },
-      { name: 'Scissors (Pair)', nameHi: 'कैंची (जोड़ी)', category: 'equipment', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: true },
-      { name: 'Safety Pins', nameHi: 'सेफ्टी पिन', category: 'equipment', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: true },
-      { name: 'Kidney Tray', nameHi: 'किडनी ट्रे', category: 'equipment', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: true },
-      { name: 'Snake Bite Lancet', nameHi: 'सांप काटने का लैंसेट', category: 'equipment', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: true },
-      { name: 'Tourniquet', nameHi: 'टूर्निकेट', category: 'equipment', unit: 'pcs', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 1, classC: 2 }, isGlobal: true },
-      { name: 'Splints (Set)', nameHi: 'स्प्लिंट्स (सेट)', category: 'equipment', unit: 'sets', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 1, classC: 2 }, isGlobal: true },
-      { name: 'First Aid Leaflet (DGFASLI)', nameHi: 'प्राथमिक चिकित्सा पत्रक (DGFASLI)', category: 'other', unit: 'copies', isPrescribed: true, prescribedBy: 'Factories Act 1948, Section 45', requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: true }
+      { name: 'Sterilized Dressing (Small)', nameHi: 'विसंक्रमित ड्रेसिंग (छोटा)', category: 'dressing', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Sterilized Dressing (Medium)', nameHi: 'विसंक्रमित ड्रेसिंग (मध्यम)', category: 'dressing', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Sterilized Dressing (Large)', nameHi: 'विसंक्रमित ड्रेसिंग (बड़ा)', category: 'dressing', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Sterilized Burn Dressing', nameHi: 'विसंक्रमित जले का ड्रेसिंग', category: 'dressing', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 2, classB: 4, classC: 8 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Roller Bandage (5cm)', nameHi: 'रोलर बैंडेज (5 सेमी)', category: 'bandage', unit: 'rolls', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Roller Bandage (10cm)', nameHi: 'रोलर बैंडेज (10 सेमी)', category: 'bandage', unit: 'rolls', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Triangular Bandage', nameHi: 'तिकोना बैंडेज', category: 'bandage', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Adhesive Plaster Roll', nameHi: 'चिपकने वाला प्लास्टर रोल', category: 'bandage', unit: 'rolls', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 2, classC: 4 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Cetrimide Solution (1%)', nameHi: 'सेट्रिमाइड सॉल्यूशन (1%)', category: 'antiseptic', unit: 'bottles', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 2, classC: 4 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Cotton Wool Packets', nameHi: 'कॉटन वूल पैकेट', category: 'dressing', unit: 'packets', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 4, classB: 8, classC: 16 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Aspirin Tablets (300mg)', nameHi: 'एस्पिरिन गोलियाँ (300mg)', category: 'medicine', unit: 'strips', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 2, classB: 4, classC: 8 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Sterilized Eye Pads', nameHi: 'विसंक्रमित आई पैड', category: 'dressing', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 4, classB: 4, classC: 8 }, isGlobal: false, requiresExpiryTracking: true },
+      { name: 'Eye Wash Bottle (500cc)', nameHi: 'आई वॉश बोतल (500cc)', category: 'equipment', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 1, classC: 2 }, isGlobal: false, requiresExpiryTracking: false },
+      { name: 'Scissors (Pair)', nameHi: 'कैंची (जोड़ी)', category: 'equipment', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: false, requiresExpiryTracking: false },
+      { name: 'Safety Pins', nameHi: 'सेफ्टी पिन', category: 'equipment', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 6, classB: 12, classC: 24 }, isGlobal: false, requiresExpiryTracking: false },
+      { name: 'Kidney Tray', nameHi: 'किडनी ट्रे', category: 'equipment', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: false, requiresExpiryTracking: false },
+      { name: 'Snake Bite Lancet', nameHi: 'सांप काटने का लैंसेट', category: 'equipment', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: false, requiresExpiryTracking: false },
+      { name: 'Tourniquet', nameHi: 'टूर्निकेट', category: 'equipment', unit: 'pcs', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 1, classC: 2 }, isGlobal: false, requiresExpiryTracking: false },
+      { name: 'Splints (Set)', nameHi: 'स्प्लिंट्स (सेट)', category: 'equipment', unit: 'sets', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 1, classC: 2 }, isGlobal: false, requiresExpiryTracking: false },
+      { name: 'First Aid Leaflet (DGFASLI)', nameHi: 'प्राथमिक चिकित्सा पत्रक (DGFASLI)', category: 'other', unit: 'copies', isMandatory: true, prescribedBy: 'Factories Act 1948, Section 45', company: company._id, requiredQty: { classA: 1, classB: 1, classC: 1 }, isGlobal: false, requiresExpiryTracking: false }
     ]);
     console.log('📦 Inventory items created (20 prescribed items)');
 
     // ── 5. Create First Aid Boxes ──
     // Helper to create items array for a given class type
-    const makeBoxItems = (cls) => items.map(item => ({
-      item: item._id,
-      currentQty: item.requiredQty[`class${cls}`],
-      requiredQty: item.requiredQty[`class${cls}`]
-    }));
-
-    const boxItemsA = makeBoxItems('A');
-    const boxItemsB = makeBoxItems('B');
-    const boxItemsC = makeBoxItems('C');
+    const makeBoxItems = (cls, boxIndex) => items.map((item) => {
+      const required = item.requiredQty[`class${cls}`];
+      const roll = rand();
+      // ~93% fully stocked, ~5% low, ~2% empty (kit 0 is kept perfect as a reference)
+      let qty = required + (rand() < 0.3 ? 1 : 0);
+      if (boxIndex !== 0 && roll > 0.93 && roll <= 0.98) qty = Math.max(1, Math.floor(required / 2));
+      if (boxIndex !== 0 && roll > 0.98) qty = 0;
+      const stocks = [];
+      let remaining = qty;
+      const batchCount = qty > 3 && rand() < 0.4 ? 2 : (qty > 0 ? 1 : 0);
+      for (let b = 0; b < batchCount; b += 1) {
+        const q = b === batchCount - 1 ? remaining : Math.ceil(remaining / 2);
+        remaining -= q;
+        let expiryDate;
+        if (item.requiresExpiryTracking) {
+          const e = rand();
+          let days = 120 + Math.floor(rand() * 600);          // healthy
+          if (boxIndex !== 0 && e < 0.012) days = -(5 + Math.floor(rand() * 40)); // expired
+          else if (boxIndex !== 0 && e < 0.05) days = 3 + Math.floor(rand() * 25); // expiring soon
+          else if (e < 0.18) days = 35 + Math.floor(rand() * 50);                 // within 90 days
+          expiryDate = new Date(Date.now() + days * DAY);
+        }
+        stocks.push({
+          batchNumber: `B${String(24 + Math.floor(rand() * 3)).padStart(2, '0')}-${String(Math.floor(rand() * 9000) + 1000)}`,
+          quantity: q,
+          expiryDate,
+          supplier: ['MedSupply India', 'Apollo Surgicals', 'Care Pharma Distributors'][Math.floor(rand() * 3)],
+          addedAt: new Date(Date.now() - Math.floor(rand() * 120) * DAY)
+        });
+      }
+      return { item: item._id, requiredQty: required, stocks, lastRestocked: new Date(Date.now() - Math.floor(rand() * 60) * DAY) };
+    });
 
     const d30 = new Date(Date.now() + 30*24*60*60*1000);
     const now = new Date();
 
-    await FirstAidBox.insertMany([
+    const boxDefs = [
       // ── PRODUCTION (3 boxes — high risk, more boxes) ──
-      { boxId: 'FAB-PROD-001', company: company._id, department: dept('PROD')._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType: 'B', inCharge: findUser('Anita Sharma')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-PROD-002', company: company._id, department: dept('PROD')._id, location: 'Welding Bay - West Wall', floor: '1st Floor', classType: 'B', inCharge: findUser('Ravi Kumar')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-PROD-003', company: company._id, department: dept('PROD')._id, location: 'CNC Machine Room - Near Fire Exit', floor: 'Ground', classType: 'C', inCharge: findUser('Ramesh Patil')._id, items: boxItemsC, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-PROD-001', company: company._id, department: dept('PROD')._id, location: 'Production Floor - Near Assembly Line', floor: 'Ground', classType: 'B', inCharge: findUser('Anita Sharma')._id, },
+      { boxId: 'FAB-PROD-002', company: company._id, department: dept('PROD')._id, location: 'Welding Bay - West Wall', floor: '1st Floor', classType: 'B', inCharge: findUser('Ravi Kumar')._id, },
+      { boxId: 'FAB-PROD-003', company: company._id, department: dept('PROD')._id, location: 'CNC Machine Room - Near Fire Exit', floor: 'Ground', classType: 'C', inCharge: findUser('Ramesh Patil')._id, },
 
       // ── MAINTENANCE (3 boxes — high risk) ──
-      { boxId: 'FAB-MAINT-001', company: company._id, department: dept('MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType: 'B', inCharge: findUser('Arvind Mishra')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-MAINT-002', company: company._id, department: dept('MAINT')._id, location: 'Electrical Panel Room', floor: '1st Floor', classType: 'B', inCharge: findUser('Sunil Yadav')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-MAINT-003', company: company._id, department: dept('MAINT')._id, location: 'HVAC Control Room', floor: 'Basement', classType: 'A', inCharge: findUser('Dinesh Sawant')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-MAINT-001', company: company._id, department: dept('MAINT')._id, location: 'Maintenance Workshop - Tool Room', floor: 'Ground', classType: 'B', inCharge: findUser('Arvind Mishra')._id, },
+      { boxId: 'FAB-MAINT-002', company: company._id, department: dept('MAINT')._id, location: 'Electrical Panel Room', floor: '1st Floor', classType: 'B', inCharge: findUser('Sunil Yadav')._id, },
+      { boxId: 'FAB-MAINT-003', company: company._id, department: dept('MAINT')._id, location: 'HVAC Control Room', floor: 'Basement', classType: 'A', inCharge: findUser('Dinesh Sawant')._id, },
 
       // ── QUALITY CONTROL (2 boxes) ──
-      { boxId: 'FAB-QC-001', company: company._id, department: dept('QC')._id, location: 'QC Lab - Main Testing Area', floor: '2nd Floor', classType: 'B', inCharge: findUser('Sunita Kadam')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-QC-002', company: company._id, department: dept('QC')._id, location: 'Sample Storage Room', floor: '2nd Floor', classType: 'A', inCharge: findUser('Ajay Chavan')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-QC-001', company: company._id, department: dept('QC')._id, location: 'QC Lab - Main Testing Area', floor: '2nd Floor', classType: 'B', inCharge: findUser('Sunita Kadam')._id, },
+      { boxId: 'FAB-QC-002', company: company._id, department: dept('QC')._id, location: 'Sample Storage Room', floor: '2nd Floor', classType: 'A', inCharge: findUser('Ajay Chavan')._id, },
 
       // ── STORES & WAREHOUSE (3 boxes — lots of physical work) ──
-      { boxId: 'FAB-STORE-001', company: company._id, department: dept('STORE')._id, location: 'Main Store - Aisle 1 Entrance', floor: 'Ground', classType: 'B', inCharge: findUser('Ashok Jadhav')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-STORE-002', company: company._id, department: dept('STORE')._id, location: 'Chemical Storage Area', floor: 'Ground', classType: 'C', inCharge: findUser('Seema Patil')._id, items: boxItemsC, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-STORE-003', company: company._id, department: dept('STORE')._id, location: 'Packing & Dispatch Zone', floor: 'Ground', classType: 'B', inCharge: findUser('Ashok Jadhav')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-STORE-001', company: company._id, department: dept('STORE')._id, location: 'Main Store - Aisle 1 Entrance', floor: 'Ground', classType: 'B', inCharge: findUser('Ashok Jadhav')._id, },
+      { boxId: 'FAB-STORE-002', company: company._id, department: dept('STORE')._id, location: 'Chemical Storage Area', floor: 'Ground', classType: 'C', inCharge: findUser('Seema Patil')._id, },
+      { boxId: 'FAB-STORE-003', company: company._id, department: dept('STORE')._id, location: 'Packing & Dispatch Zone', floor: 'Ground', classType: 'B', inCharge: findUser('Ashok Jadhav')._id, },
 
       // ── ADMINISTRATION (2 boxes — low risk) ──
-      { boxId: 'FAB-ADMIN-001', company: company._id, department: dept('ADMIN')._id, location: 'Main Office - Reception Area', floor: '1st Floor', classType: 'A', inCharge: findUser('Sneha Deshpande')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-ADMIN-002', company: company._id, department: dept('ADMIN')._id, location: 'Conference Hall - Near Exit', floor: '2nd Floor', classType: 'A', inCharge: findUser('Rohit Shinde')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-ADMIN-001', company: company._id, department: dept('ADMIN')._id, location: 'Main Office - Reception Area', floor: '1st Floor', classType: 'A', inCharge: findUser('Sneha Deshpande')._id, },
+      { boxId: 'FAB-ADMIN-002', company: company._id, department: dept('ADMIN')._id, location: 'Conference Hall - Near Exit', floor: '2nd Floor', classType: 'A', inCharge: findUser('Rohit Shinde')._id, },
 
       // ── SAFETY & EHS (2 boxes) ──
-      { boxId: 'FAB-SAFETY-001', company: company._id, department: dept('SAFETY')._id, location: 'Safety Office - Main Desk', floor: 'Ground', classType: 'B', inCharge: findUser('Kavita Nair')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-SAFETY-002', company: company._id, department: dept('SAFETY')._id, location: 'Fire Assembly Point - North Gate', floor: 'Ground', classType: 'C', inCharge: findUser('Nitin Pawar')._id, items: boxItemsC, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-SAFETY-001', company: company._id, department: dept('SAFETY')._id, location: 'Safety Office - Main Desk', floor: 'Ground', classType: 'B', inCharge: findUser('Kavita Nair')._id, },
+      { boxId: 'FAB-SAFETY-002', company: company._id, department: dept('SAFETY')._id, location: 'Fire Assembly Point - North Gate', floor: 'Ground', classType: 'C', inCharge: findUser('Nitin Pawar')._id, },
 
       // ── HUMAN RESOURCES (2 boxes — low risk) ──
-      { boxId: 'FAB-HR-001', company: company._id, department: dept('HR')._id, location: 'HR Office - Interview Room', floor: '1st Floor', classType: 'A', inCharge: findUser('Pooja Mehta')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-HR-002', company: company._id, department: dept('HR')._id, location: 'Training Hall', floor: '2nd Floor', classType: 'A', inCharge: findUser('Amit Thakur')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
+      { boxId: 'FAB-HR-001', company: company._id, department: dept('HR')._id, location: 'HR Office - Interview Room', floor: '1st Floor', classType: 'A', inCharge: findUser('Pooja Mehta')._id, },
+      { boxId: 'FAB-HR-002', company: company._id, department: dept('HR')._id, location: 'Training Hall', floor: '2nd Floor', classType: 'A', inCharge: findUser('Amit Thakur')._id, },
 
       // ── LOGISTICS (3 boxes — medium risk, heavy lifting) ──
-      { boxId: 'FAB-LOG-001', company: company._id, department: dept('LOG')._id, location: 'Warehouse - Loading Dock', floor: 'Ground', classType: 'B', inCharge: findUser('Prakash Gaikwad')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-LOG-002', company: company._id, department: dept('LOG')._id, location: 'Forklift Parking Bay', floor: 'Ground', classType: 'B', inCharge: findUser('Vishal Kale')._id, items: boxItemsB, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' },
-      { boxId: 'FAB-LOG-003', company: company._id, department: dept('LOG')._id, location: 'Dispatch Office - Near Gate 2', floor: 'Ground', classType: 'A', inCharge: findUser('Rekha Mane')._id, items: boxItemsA, lastInspectionDate: now, nextInspectionDue: d30, status: 'adequate' }
-    ]);
-    console.log('🩹 First Aid Boxes created (22 boxes across 8 departments)');
+      { boxId: 'FAB-LOG-001', company: company._id, department: dept('LOG')._id, location: 'Warehouse - Loading Dock', floor: 'Ground', classType: 'B', inCharge: findUser('Prakash Gaikwad')._id, },
+      { boxId: 'FAB-LOG-002', company: company._id, department: dept('LOG')._id, location: 'Forklift Parking Bay', floor: 'Ground', classType: 'B', inCharge: findUser('Vishal Kale')._id, },
+      { boxId: 'FAB-LOG-003', company: company._id, department: dept('LOG')._id, location: 'Dispatch Office - Near Gate 2', floor: 'Ground', classType: 'A', inCharge: findUser('Rekha Mane')._id, }
+    ];
+    const boxes = await FirstAidBox.create(boxDefs.map((def, idx) => {
+      // Inspection history: most kits inspected within the last 3 weeks, a few overdue
+      const daysAgo = [4, 9, 16].includes(idx) ? 38 + idx : Math.floor(rand() * 21);
+      const last = new Date(Date.now() - daysAgo * DAY);
+      return {
+        ...def,
+        items: makeBoxItems(def.classType, idx),
+        lastInspectionDate: last,
+        nextInspectionDue: new Date(last.getTime() + 30 * DAY)
+      };
+    }));
+    console.log(`🩹 First Aid Boxes created (${boxes.length} kits across 8 departments)`);
+
+    // Section 45(2): kit in-charges are trained first-aiders (a few certifications are left lapsed for the demo)
+    const inChargeIds = [...new Set(boxes.map((b) => String(b.inCharge)))];
+    const lapsed = new Set(inChargeIds.filter((_, i) => i % 7 === 3));
+    await User.updateMany({ _id: { $in: inChargeIds.filter((id) => !lapsed.has(id)) } }, { $set: { firstAidCertified: true, firstAidTrainingStatus: 'trained', certificationExpiry: new Date(Date.now() + 400 * DAY) } });
+    await User.updateMany({ _id: { $in: [...lapsed] } }, { $set: { firstAidCertified: true, firstAidTrainingStatus: 'trained', certificationExpiry: new Date(Date.now() - 20 * DAY) } });
+
+    // Inspection records matching each kit's last inspection
+    const inspectors = users.filter((u) => ['doctor', 'manager'].includes(u.role));
+    for (const [idx, box] of boxes.entries()) {
+      const inspector = inspectors[idx % inspectors.length];
+      const inspection = await Inspection.create({
+        firstAidBox: box._id, inspector: inspector._id, inspectorName: inspector.name, company: company._id,
+        inspectionDate: box.lastInspectionDate,
+        status: 'adequate',
+        checklist: box.items.map((i) => ({ itemName: (items.find((it) => String(it._id) === String(i.item)) || {}).name || 'Item', checked: true })),
+        overallNotes: 'Routine monthly inspection',
+        complianceStatus: 'compliant', complianceScore: 100
+      });
+      box.inspectionLogs.push({ inspectedBy: inspector._id, inspection: inspection._id, date: box.lastInspectionDate, status: 'adequate', notes: 'Routine monthly inspection' });
+      await box.save();
+    }
+    console.log('🔍 Inspection history created');
+
+    // Opening stock entries in the movement ledger
+    const ledger = [];
+    boxes.forEach((box) => box.items.forEach((i) => i.stocks.forEach((st) => ledger.push({
+      company: company._id, box: box._id, boxCode: box.boxId, item: i.item,
+      itemName: (items.find((it) => String(it._id) === String(i.item)) || {}).name,
+      type: 'restock', quantityChange: st.quantity, quantityBefore: 0, quantityAfter: st.quantity,
+      batchNumber: st.batchNumber, expiryDate: st.expiryDate, reason: 'Opening stock', performedByName: 'Seed data',
+      createdAt: st.addedAt
+    }))));
+    await StockTransaction.insertMany(ledger);
+    console.log(`📒 ${ledger.length} opening stock movements recorded`);
+
+    // A few sample incidents
+    const findU = (name) => users.find((u) => u.name === name);
+    const sampleIncidents = [
+      { who: 'Ravi Kumar', dept: 'PROD', sev: 'minor', type: 'injury', desc: 'Small cut on left hand while handling sheet metal at the assembly line.', loc: 'Production Floor - Near Assembly Line', outcome: 'returned_to_work', status: 'resolved', days: 3 },
+      { who: 'Sunil Yadav', dept: 'MAINT', sev: 'moderate', type: 'injury', desc: 'Minor burn on forearm from hot pipe during routine maintenance.', loc: 'Maintenance Workshop - Tool Room', outcome: 'referred_to_doctor', status: 'under_investigation', days: 6, forwarded: true },
+      { who: 'Vishal Kale', dept: 'LOG', sev: 'serious', type: 'injury', desc: 'Foot injury when a pallet slipped off the forklift at the loading dock.', loc: 'Warehouse - Loading Dock', outcome: 'hospitalized', status: 'under_investigation', days: 12, daysLost: 4 },
+      { who: 'Ajay Chavan', dept: 'QC', sev: 'minor', type: 'near_miss', desc: 'Chemical sample container nearly fell from the shelf; no injury.', loc: 'QC Lab - Main Testing Area', outcome: 'returned_to_work', status: 'reported', days: 1 }
+    ];
+    for (const s of sampleIncidents) {
+      const person = findU(s.who);
+      const when = new Date(Date.now() - s.days * DAY);
+      await Incident.create({
+        company: company._id, reportedBy: person._id, department: dept(s.dept)._id,
+        injuredPerson: { name: person.name, employeeId: person.employeeId, department: dept(s.dept)._id, designation: person.designation },
+        dateTime: when, location: s.loc, incidentType: s.type, severity: s.sev, description: s.desc,
+        outcome: s.outcome, status: s.status, daysLost: s.daysLost || 0, forwardedToDoctor: Boolean(s.forwarded),
+        stockDeducted: false,
+        statusHistory: [{ status: 'reported', changedBy: person._id, changedAt: when, notes: 'Incident reported' }]
+      });
+    }
+    console.log('🚑 Sample incidents created');
+
+    // Index builds and status/alert generation, exactly as the server does at startup
+    await runMigrations();
+    const { runCompanyChecks } = require('../services/monitoringService');
+    const check = await runCompanyChecks(company._id);
+    console.log(`🔔 Monitoring run: ${check.alertsGenerated} alert(s), compliance score ${check.complianceScore}%`);
 
     // ── Summary ──
     console.log('\n✅ Seed complete! All accounts created.');
     console.log('   Password for ALL accounts: Demo@123\n');
 
+    console.log('   ═══ ADMINISTRATOR ═══');
+    console.log('   Asha Verma        admin@simplyaid.com     (System Administrator)\n');
     console.log('   ═══ DOCTORS (3) ═══');
     console.log('   Dr. Arun Desai    arun@simplyaid.com      (⭐ Head Doctor — Administration)');
     console.log('   Dr. Meena Iyer    meena@simplyaid.com     (Factory Doctor — Safety & EHS)');
@@ -496,6 +622,7 @@ const seedDB = async () => {
 
     console.log(`   TOTAL: ${users.length} accounts\n`);
 
+    await mongoose.disconnect();
     process.exit(0);
   } catch (error) {
     console.error('❌ Seed error:', error);

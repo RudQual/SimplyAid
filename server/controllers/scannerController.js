@@ -1,59 +1,54 @@
 const Scanner = require('../models/Scanner');
+const Department = require('../models/Department');
+const { audit } = require('../utils/notificationService');
+const { ApiError, companyIdOf, isValidId, pick } = require('../utils/http');
 
-// @desc    Get all scanners (company-scoped)
-// @route   GET /api/scanners
-// @access  Protected
-exports.getScanners = async (req, res, next) => {
-  try {
-    const companyId = req.user.company ? (req.user.company._id || req.user.company) : null;
-    const scanners = await Scanner.find({ company: companyId, isActive: true })
-      .populate('department', 'name code')
-      .sort('department name');
-    res.json({ success: true, count: scanners.length, data: scanners });
-  } catch (error) {
-    next(error);
+const FIELDS = ['scannerId', 'name', 'department', 'location', 'floor'];
+
+const validateDept = async (req, data) => {
+  if (data.department !== undefined
+    && (!isValidId(String(data.department)) || !(await Department.exists({ _id: data.department, company: companyIdOf(req) })))) {
+    throw ApiError.badRequest('Invalid department');
   }
 };
 
-// @desc    Create a scanner
-// @route   POST /api/scanners
-// @access  Protected (manager, doctor)
-exports.createScanner = async (req, res, next) => {
-  try {
-    req.body.company = req.body.company || (req.user.company ? (req.user.company._id || req.user.company) : null);
-    const scanner = await Scanner.create(req.body);
-    const populated = await Scanner.findById(scanner._id).populate('department', 'name code');
-    res.status(201).json({ success: true, data: populated });
-  } catch (error) {
-    next(error);
-  }
+// @route GET /api/scanners
+exports.getScanners = async (req, res) => {
+  const scanners = await Scanner.find({ company: companyIdOf(req), isActive: true })
+    .populate('department', 'name code')
+    .sort('department name');
+  res.json({ success: true, count: scanners.length, data: scanners });
 };
 
-// @desc    Update a scanner
-// @route   PUT /api/scanners/:id
-// @access  Protected (manager, doctor)
-exports.updateScanner = async (req, res, next) => {
-  try {
-    const scanner = await Scanner.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    }).populate('department', 'name code');
-    if (!scanner) return res.status(404).json({ success: false, message: 'Scanner not found' });
-    res.json({ success: true, data: scanner });
-  } catch (error) {
-    next(error);
-  }
+// @route POST /api/scanners
+exports.createScanner = async (req, res) => {
+  const data = pick(req.body, FIELDS);
+  await validateDept(req, data);
+  const scanner = await Scanner.create({ ...data, company: companyIdOf(req) });
+  await scanner.populate('department', 'name code');
+  audit(req, { action: 'Created scanner', entity: 'Scanner', entityId: scanner._id, entityLabel: scanner.name });
+  res.status(201).json({ success: true, data: scanner, message: 'Scanner created' });
 };
 
-// @desc    Delete a scanner (soft)
-// @route   DELETE /api/scanners/:id
-// @access  Protected (manager, doctor)
-exports.deleteScanner = async (req, res, next) => {
-  try {
-    const scanner = await Scanner.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
-    if (!scanner) return res.status(404).json({ success: false, message: 'Scanner not found' });
-    res.json({ success: true, message: 'Scanner deactivated' });
-  } catch (error) {
-    next(error);
-  }
+// @route PUT /api/scanners/:id
+exports.updateScanner = async (req, res) => {
+  if (!isValidId(req.params.id)) throw ApiError.notFound('Scanner not found');
+  const data = pick(req.body, FIELDS);
+  await validateDept(req, data);
+  const scanner = await Scanner.findOne({ _id: req.params.id, company: companyIdOf(req), isActive: true });
+  if (!scanner) throw ApiError.notFound('Scanner not found');
+  scanner.set(data);
+  await scanner.save();
+  await scanner.populate('department', 'name code');
+  audit(req, { action: 'Updated scanner', entity: 'Scanner', entityId: scanner._id, entityLabel: scanner.name });
+  res.json({ success: true, data: scanner, message: 'Scanner updated' });
+};
+
+// @route DELETE /api/scanners/:id  (deactivates)
+exports.deleteScanner = async (req, res) => {
+  if (!isValidId(req.params.id)) throw ApiError.notFound('Scanner not found');
+  const scanner = await Scanner.findOneAndUpdate({ _id: req.params.id, company: companyIdOf(req) }, { isActive: false }, { returnDocument: 'after' });
+  if (!scanner) throw ApiError.notFound('Scanner not found');
+  audit(req, { action: 'Deactivated scanner', entity: 'Scanner', entityId: scanner._id, entityLabel: scanner.name });
+  res.json({ success: true, message: 'Scanner deactivated' });
 };

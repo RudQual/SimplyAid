@@ -1,66 +1,57 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { normalizeRole } = require('../config/roles');
+const { companyIdOf } = require('../utils/http');
 
-// Protect routes — verify JWT
+const unauthorized = (res, message) => res.status(401).json({ success: false, message });
+
+// Protect routes — verify the JWT and load the user.
 const protect = async (req, res, next) => {
-  let token;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    token = req.headers.authorization.split(' ')[1];
-  }
+  if (!token) return unauthorized(res, 'Not authorized — please sign in');
 
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'Not authorized — no token provided'
-    });
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+  } catch (error) {
+    return unauthorized(res, error.name === 'TokenExpiredError'
+      ? 'Your session has expired — please sign in again'
+      : 'Not authorized — invalid token');
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).populate('company department');
-    
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found'
-      });
+    const user = await User.findById(decoded.id).populate('company', 'name code').populate('department', 'name code');
+    if (!user) return unauthorized(res, 'User not found');
+    if (!user.isActive) return unauthorized(res, 'Account is deactivated. Contact your administrator.');
+
+    // Tokens issued before the last password change are no longer valid.
+    if (user.passwordChangedAt && decoded.iat * 1000 < user.passwordChangedAt.getTime() - 1000) {
+      return unauthorized(res, 'Your password was changed — please sign in again');
     }
 
-    if (!req.user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'Account is deactivated'
-      });
-    }
-
+    user.role = normalizeRole(user.role);
+    req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Not authorized — invalid token'
-    });
+    next(error);
   }
 };
 
-// Authorize by role
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: `Role '${req.user.role}' is not authorized to access this resource`
-      });
-    }
-    next();
-  };
+// Authorize by role. Admins are always allowed.
+const authorize = (...roles) => (req, res, next) => {
+  const role = normalizeRole(req.user && req.user.role);
+  if (role === 'admin' || roles.includes(role)) return next();
+  return res.status(403).json({
+    success: false,
+    message: 'You do not have permission to perform this action'
+  });
 };
 
-// Ensure user belongs to same company as the resource
+// Attach the company filter to the request.
 const sameCompany = (req, res, next) => {
-  // Admin can potentially see cross-company if needed
-  // For now, attach company filter to request
-  req.companyId = req.user.company._id || req.user.company;
+  req.companyId = companyIdOf(req);
   next();
 };
 
