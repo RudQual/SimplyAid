@@ -19,7 +19,7 @@ const { protect, authorize } = require('../middleware/auth');
 router.use(protect);
 
 // Scan history (must come before parameterized routes)
-router.get('/scan-history', getScanHistory);
+router.get('/scan-history', authorize('doctor', 'manager'), getScanHistory);
 router.get('/scan-history/:employeeId', getEmployeeScanHistory);
 
 // QR scan endpoint (by employeeId string like EMP-2026-0001)

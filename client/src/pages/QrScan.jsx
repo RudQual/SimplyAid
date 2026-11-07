@@ -143,7 +143,7 @@ const QrScan = () => {
 
       if (payload.type === 'first_aid_box' && payload.boxId) {
         toast.success(`First Aid Box ${payload.boxId} detected!`);
-        navigate(`/inventory/boxes/scan/${payload.boxId}`);
+        navigate(`/kits/code/${encodeURIComponent(payload.boxId)}`);
         return;
       }
 

@@ -1,27 +1,27 @@
-const router = require('express').Router();
-const {
-  createTreatment,
-  getTreatments,
-  getTreatment,
-  getEmployeeTreatments,
-  getTreatmentStats
-} = require('../controllers/treatmentController');
+const express = require('express');
+const { body } = require('express-validator');
 const { protect, authorize } = require('../middleware/auth');
+const { validate } = require('../middleware/security');
+const c = require('../controllers/treatmentController');
 
+const router = express.Router();
 router.use(protect);
 
 // Stats must come before parameterized routes
-router.get('/stats', getTreatmentStats);
+router.get('/stats', authorize('doctor'), c.getTreatmentStats);
 
-// Employee treatment history
-router.get('/employee/:employeeId', getEmployeeTreatments);
+// Treatment history of one employee (the employee themself, managers and doctors)
+router.get('/employee/:employeeId', c.getEmployeeTreatments);
 
-// CRUD
 router.route('/')
-  .get(getTreatments)
-  .post(authorize('doctor'), createTreatment);
+  .get(authorize('doctor'), c.getTreatments)
+  .post(authorize('doctor'), validate([
+    body('employee').isMongoId().withMessage('Select the employee who was treated'),
+    body('injurySeverity').isIn(['minor', 'moderate', 'serious', 'critical']).withMessage('Select a severity'),
+    body('treatmentProvided').isString().trim().isLength({ min: 3, max: 5000 }).withMessage('Describe the treatment provided'),
+    body('medicinesUsed').optional().isArray({ max: 50 })
+  ]), c.createTreatment);
 
-router.route('/:id')
-  .get(getTreatment);
+router.get('/:id', authorize('doctor'), c.getTreatment);
 
 module.exports = router;

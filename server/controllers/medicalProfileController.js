@@ -1,6 +1,18 @@
 const MedicalProfile = require('../models/MedicalProfile');
 const User = require('../models/User');
 const { createAuditLog } = require('../utils/notificationService');
+const { companyIdOf, departmentIdOf, isValidId } = require('../utils/http');
+
+// Load an employee of the requester's company (null when not found / other company)
+const findEmployee = (req, id) => (isValidId(String(id)) ? User.findOne({ _id: id, company: companyIdOf(req) }) : Promise.resolve(null));
+
+// Doctors/admins: anyone in the company. Managers: their own department. Others: themselves.
+const canAccess = (req, employee) => {
+  if (String(req.user._id) === String(employee._id)) return true;
+  if (['admin', 'doctor'].includes(req.user.role)) return true;
+  if (req.user.role === 'manager') return Boolean(departmentIdOf(req) && employee.department && String(employee.department._id || employee.department) === String(departmentIdOf(req)));
+  return false;
+};
 
 // @desc    Get medical profile for an employee (create if not exists)
 // @route   GET /api/medical-profiles/:employeeId
@@ -8,16 +20,14 @@ const { createAuditLog } = require('../utils/notificationService');
 exports.getMedicalProfile = async (req, res, next) => {
   try {
     const employeeId = req.params.employeeId;
-    const employee = await User.findById(employeeId).select('name employeeId bloodGroup knownAllergies chronicConditions emergencyContact company');
+    const employee = await findEmployee(req, employeeId);
 
     if (!employee) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
     // Access control: self, or admin/safety/first_aider
-    const isSelf = req.user._id.toString() === employeeId;
-    const hasAccess = ['doctor', 'manager'].includes(req.user.role);
-    if (!isSelf && !hasAccess) {
+    if (!canAccess(req, employee)) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this medical profile' });
     }
 
@@ -51,15 +61,13 @@ exports.getMedicalProfile = async (req, res, next) => {
 exports.updateMedicalProfile = async (req, res, next) => {
   try {
     const employeeId = req.params.employeeId;
-    const employee = await User.findById(employeeId);
+    const employee = await findEmployee(req, employeeId);
 
     if (!employee) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
-    const isSelf = req.user._id.toString() === employeeId;
-    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
-    if (!isSelf && !isAdmin) {
+    if (!canAccess(req, employee)) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
@@ -77,7 +85,7 @@ exports.updateMedicalProfile = async (req, res, next) => {
 
     let profile = await MedicalProfile.findOne({ employee: employeeId });
     if (!profile) {
-      profile = new MedicalProfile({ employee: employeeId, company: companyId });
+      profile = new MedicalProfile({ employee: employeeId, company: employee.company });
     }
 
     Object.assign(profile, updates);
@@ -120,7 +128,11 @@ exports.updateMedicalProfile = async (req, res, next) => {
 exports.getEmergencyCard = async (req, res, next) => {
   try {
     const employeeId = req.params.employeeId;
-    const employee = await User.findById(employeeId)
+    if (!isValidId(String(employeeId))) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+    // Emergency card is intentionally readable by any colleague in the same company (first response)
+    const employee = await User.findOne({ _id: employeeId, company: companyIdOf(req) })
       .select('name employeeId bloodGroup knownAllergies chronicConditions emergencyContact profilePhoto department')
       .populate('department', 'name');
 

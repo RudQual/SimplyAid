@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './EmployeeProfile.css';
+import { formatDate } from '../utils/format';
 
 const EmployeeProfile = () => {
   const { id } = useParams();
@@ -29,10 +30,9 @@ const EmployeeProfile = () => {
 
   const [medicalProfile, setMedicalProfile] = useState(null);
   const [treatments, setTreatments] = useState([]);
-  const [prescriptions, setPrescriptions] = useState([]);
 
   const isSelf = currentUser?._id === id;
-  const isAdmin = hasRole('doctor', 'manager');
+  const isAdmin = hasRole('doctor', 'manager', 'admin');
 
   useEffect(() => {
     loadProfile();
@@ -41,18 +41,16 @@ const EmployeeProfile = () => {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const [profileRes, scanRes, medRes, trtRes, rxRes] = await Promise.all([
+      const [profileRes, scanRes, medRes, trtRes] = await Promise.all([
         getEmployeeProfile(id),
         getEmployeeScanHistory(id).catch(() => ({ data: { data: [] } })),
         getMedicalProfile(id).catch(() => ({ data: { data: null } })),
-        getEmployeeTreatments(id).catch(() => ({ data: { data: [] } })),
-        getActivePrescriptions(id).catch(() => ({ data: { data: [] } }))
+        getEmployeeTreatments(id).catch(() => ({ data: { data: [] } }))
       ]);
       setEmployee(profileRes.data.data);
       setScanHistory(scanRes.data.data || []);
       setMedicalProfile(medRes.data.data);
       setTreatments(trtRes.data.data || []);
-      setPrescriptions(rxRes.data.data || []);
     } catch (e) {
       toast.error('Failed to load profile');
       navigate('/employees');
@@ -225,9 +223,6 @@ const EmployeeProfile = () => {
         </button>
         <button className={`profile-tab ${activeTab === 'treatments' ? 'active' : ''}`} onClick={() => setActiveTab('treatments')}>
           <Stethoscope size={16} /> Treatments ({treatments.length})
-        </button>
-        <button className={`profile-tab ${activeTab === 'prescriptions' ? 'active' : ''}`} onClick={() => setActiveTab('prescriptions')}>
-          <FileText size={16} /> Active Prescriptions ({prescriptions.length})
         </button>
       </div>
 
@@ -481,7 +476,7 @@ const EmployeeProfile = () => {
                     {treatments.map(t => (
                       <tr key={t._id} onClick={() => navigate(`/treatments/${t._id}`)} style={{ cursor: 'pointer' }}>
                         <td style={{ color: 'var(--blue-600)', fontWeight: 600 }}>{t.treatmentId}</td>
-                        <td>{new Date(t.treatmentDate).toLocaleDateString()}</td>
+                        <td>{formatDate(t.treatmentDate)}</td>
                         <td>{t.injuryType}</td>
                         <td><span className={`badge badge-${t.injurySeverity}`}>{t.injurySeverity}</span></td>
                         <td>{t.treatmentProvided?.substring(0, 40)}...</td>
@@ -494,28 +489,6 @@ const EmployeeProfile = () => {
           </div>
         )}
 
-        {activeTab === 'prescriptions' && (
-          <div className="profile-section full-width">
-            <div className="profile-section-title"><FileText size={16} /> Active Prescriptions</div>
-            {prescriptions.length > 0 ? (
-              <div className="table-container" style={{ border: 'none' }}>
-                <table className="data-table">
-                  <thead><tr><th>Doctor</th><th>Date</th><th>Medicines</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {prescriptions.map(p => (
-                      <tr key={p._id}>
-                        <td>{p.doctorName}</td>
-                        <td>{new Date(p.issueDate).toLocaleDateString()}</td>
-                        <td>{p.medicines?.length || 0} item(s)</td>
-                        <td><span className="badge badge-green">{p.status}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <div className="empty-state"><p>No active prescriptions.</p></div>}
-          </div>
-        )}
       </div>
 
       {/* Edit Modal */}

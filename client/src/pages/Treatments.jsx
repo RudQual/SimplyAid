@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getTreatments, getDepartments, getUsers } from '../services/api';
 import { Stethoscope, Plus, Search, Filter, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import './Treatments.css';
+import { formatDate } from '../utils/format';
 
 const Treatments = () => {
   const { requireAuth } = useAuth();
@@ -105,7 +106,7 @@ const Treatments = () => {
                       </div>
                     </div>
                   </td>
-                  <td>{new Date(t.treatmentDate).toLocaleDateString()}</td>
+                  <td>{formatDate(t.treatmentDate)}</td>
                   <td>{t.injuryType || '—'}</td>
                   <td><span className={`badge badge-${t.injurySeverity}`}>{t.injurySeverity}</span></td>
                   <td>{t.firstAider?.name || t.firstAiderName || '—'}</td>

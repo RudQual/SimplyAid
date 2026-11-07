@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useScanner } from '../contexts/ScannerContext';
-import { createIncident, getDepartments, getUsers, getBoxes, getInventoryItems } from '../services/api';
+import { createIncident, getDepartments, getBoxes, getInventoryItems } from '../services/api';
 import { ArrowLeft, ArrowRight, Save, AlertTriangle, MapPin, Radio, Stethoscope, Briefcase, Clock, Plus, X, Box } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -215,9 +215,10 @@ const NewIncident = () => {
       }
       delete data.usedFirstAid; // not needed in schema
 
-      await createIncident(data);
-      toast.success('Incident reported successfully!');
-      navigate('/incidents');
+      const res = await createIncident(data);
+      toast.success(res.data.message || 'Incident reported successfully!');
+      if (res.data.warning) toast(res.data.warning, { icon: '⚠️', duration: 7000 });
+      navigate(`/incidents/${res.data.data._id}`);
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to report incident'); }
     finally { setLoading(false); }
   };
@@ -388,7 +389,7 @@ const NewIncident = () => {
                   <div style={{ display: 'flex', gap: 10 }}>
                     <select style={{ flex: 1 }} value={selectedItem} onChange={e => setSelectedItem(e.target.value)}>
                       <option value="">-- Select Item --</option>
-                      {inventoryItems.map(i => <option key={i._id} value={i._id}>{i.name} ({i.unit})</option>)}
+                      {(() => { const box = boxes.find(b => b._id === form.firstAidBoxUsed); const inBox = box ? new Map(box.items.map(bi => [bi.item?._id || bi.item, bi.currentQty])) : null; return inventoryItems.filter(i => !inBox || inBox.has(i._id)).map(i => <option key={i._id} value={i._id}>{i.name} ({inBox ? inBox.get(i._id) + ' ' : ''}{i.unit}{inBox ? ' in kit' : ''})</option>); })()}
                     </select>
                     <input type="number" min="1" value={itemQty} onChange={e => setItemQty(e.target.value)} style={{ width: 80 }} placeholder="Qty" />
                     <button type="button" className="btn btn-primary" onClick={addItem} disabled={!selectedItem || itemQty < 1}><Plus size={16} /> Add</button>

@@ -1,106 +1,95 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loginUser as loginAPI, signupUser as signupAPI, quickLoginUser as quickLoginAPI, getMe } from '../services/api';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  loginUser as loginAPI, signupUser as signupAPI, quickLoginUser as quickLoginAPI, getMe, logoutUser, tokenStore
+} from '../services/api';
 import translations from '../utils/translations';
 
 const AuthContext = createContext(null);
 
 export const useAuth = () => useContext(AuthContext);
 
+// Role capabilities mirrored from the server (server/config/roles.js). The server
+// always enforces permissions; these only decide what the UI offers.
+const CAN = {
+  manageInventory: ['admin', 'doctor', 'manager'],
+  manageCatalog: ['admin', 'doctor', 'manager'],
+  retireKits: ['admin', 'doctor'],
+  inspect: ['admin', 'doctor', 'manager'],
+  viewCompliance: ['admin', 'doctor', 'manager'],
+  viewReports: ['admin', 'doctor', 'manager'],
+  manageUsers: ['admin', 'doctor'],
+  viewUsers: ['admin', 'doctor', 'manager'],
+  viewActivity: ['admin', 'doctor'],
+  manageDepartments: ['admin', 'doctor'],
+  treatments: ['admin', 'doctor'],
+  reviewIncidents: ['admin', 'doctor'],
+  confirmIncidents: ['manager']
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState(() => localStorage.getItem('simplyaid_lang') || 'en');
-  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const t = useCallback((path) => {
-    const keys = path.split('.');
     let val = translations[lang];
-    for (const k of keys) { val = val?.[k]; }
-    return val || path;
+    for (const k of path.split('.')) val = val?.[k];
+    if (val) return val;
+    let fallback = translations.en;
+    for (const k of path.split('.')) fallback = fallback?.[k];
+    return fallback || path;
   }, [lang]);
 
-  const switchLang = (l) => { setLang(l); localStorage.setItem('simplyaid_lang', l); };
+  const switchLang = useCallback((l) => { setLang(l); localStorage.setItem('simplyaid_lang', l); }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('simplyaid_token');
-    if (token) {
-      getMe().then(res => { setUser(res.data.data); setLoading(false); })
-        .catch(() => { localStorage.removeItem('simplyaid_token'); setLoading(false); });
-    } else { setLoading(false); }
+    if (!tokenStore.get()) { setLoading(false); return; }
+    getMe()
+      .then((res) => setUser(res.data.data))
+      .catch(() => tokenStore.clear())
+      .finally(() => setLoading(false));
   }, []);
 
-  // Helper to store auth response
-  const handleAuthResponse = (res) => {
-    localStorage.setItem('simplyaid_token', res.data.token);
-    localStorage.setItem('simplyaid_user', JSON.stringify(res.data.data));
+  const handleAuthResponse = useCallback((res) => {
+    tokenStore.set(res.data.token);
     setUser(res.data.data);
     if (res.data.data.preferredLanguage) switchLang(res.data.data.preferredLanguage);
     return res.data;
-  };
+  }, [switchLang]);
 
-  const login = async (email, password) => {
-    const res = await loginAPI({ email, password });
-    return handleAuthResponse(res);
-  };
+  const login = useCallback(async (email, password) => handleAuthResponse(await loginAPI({ email, password })), [handleAuthResponse]);
+  const signup = useCallback(async (data) => handleAuthResponse(await signupAPI(data)), [handleAuthResponse]);
+  const quickLoginByEmail = useCallback(async (email) => handleAuthResponse(await quickLoginAPI({ email })), [handleAuthResponse]);
 
-  const signup = async (name, email, password, employeeId, role) => {
-    const res = await signupAPI({ name, email, password, employeeId, role });
-    return handleAuthResponse(res);
-  };
+  /** Store a token issued by the server (e.g. after a password change). */
+  const updateSession = useCallback((token, userData) => {
+    if (token) tokenStore.set(token);
+    if (userData) setUser(userData);
+  }, []);
 
-  const quickLoginByEmail = async (email) => {
-    const res = await quickLoginAPI({ email });
-    return handleAuthResponse(res);
-  };
-
-  // Returns the correct redirect path based on user role
-  const getRoleRedirect = (role) => {
-    switch (role) {
-      case 'doctor': return '/doctor-dashboard';
-      case 'manager': return '/manager-dashboard';
-      default: return '/';
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('simplyaid_token');
-    localStorage.removeItem('simplyaid_user');
+  const logout = useCallback(async () => {
+    try { await logoutUser(); } catch { /* token may already be invalid */ }
+    tokenStore.clear();
     setUser(null);
-    window.location.href = '/login';
-  };
+    window.location.assign('/login');
+  }, []);
 
-  const refreshUser = async () => {
-    try {
-      const res = await getMe();
-      setUser(res.data.data);
-      localStorage.setItem('simplyaid_user', JSON.stringify(res.data.data));
-    } catch (e) {
-      console.error('Failed to refresh user:', e);
-    }
-  };
+  const refreshUser = useCallback(async () => {
+    const res = await getMe();
+    setUser(res.data.data);
+    return res.data.data;
+  }, []);
 
-  // Role-based access control — checks if the logged-in user has one of the specified roles
-  const hasRole = (...roles) => {
-    if (!user) return false;
-    return roles.includes(user.role);
-  };
+  const hasRole = useCallback((...roles) => Boolean(user && roles.includes(user.role)), [user]);
+  const can = useCallback((capability) => Boolean(user && CAN[capability] && CAN[capability].includes(user.role)), [user]);
 
-  // Guest mode helpers
-  const isGuest = !loading && !user;
+  const value = useMemo(() => ({
+    user, loading, login, signup, quickLoginByEmail, logout, refreshUser, updateSession, hasRole, can, t, lang, switchLang,
+    getRoleRedirect: () => '/',
+    // All app routes require sign-in, so the old guest-mode helpers are no-ops.
+    isGuest: false,
+    requireAuth: (callback) => callback()
+  }), [user, loading, login, signup, quickLoginByEmail, logout, refreshUser, updateSession, hasRole, can, t, lang, switchLang]);
 
-  // Call this to guard an action. If user is logged in, runs the callback immediately.
-  // If guest, shows the auth-required modal instead.
-  const requireAuth = (callback) => {
-    if (user) {
-      callback();
-    } else {
-      setShowAuthModal(true);
-    }
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, loading, login, signup, quickLoginByEmail, getRoleRedirect, logout, refreshUser, hasRole, t, lang, switchLang, isGuest, requireAuth, showAuthModal, setShowAuthModal }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

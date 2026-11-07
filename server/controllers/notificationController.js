@@ -1,131 +1,122 @@
 const Notification = require('../models/Notification');
+const { ApiError, qs, isValidId, searchRegex, parsePagination } = require('../utils/http');
 
-exports.getNotifications = async (req, res, next) => {
-  try {
-    const { page = 1, limit = 20, unreadOnly, category, priority, search, archived } = req.query;
-    const filter = { recipient: req.user._id };
+const HISTORY_DAYS = 90;
+const activeWindow = () => new Date(Date.now() - HISTORY_DAYS * 86400000);
 
-    const showArchived = archived === 'true';
-    if (showArchived) {
-      filter.archivedAt = { $ne: null };
-    } else {
-      filter.archivedAt = null;
-      // Only keep 30 days history for standard active notifications
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      filter.createdAt = { $gte: thirtyDaysAgo };
-    }
+const baseFilter = (req) => ({ recipient: req.user._id });
 
-    if (unreadOnly === 'true') filter.isRead = false;
-    if (category) filter.category = category;
-    if (priority) filter.priority = priority;
-    if (search) {
-      filter.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { message: { $regex: search, $options: 'i' } }
-      ];
-    }
+// @route GET /api/notifications
+exports.getNotifications = async (req, res) => {
+  const filter = baseFilter(req);
+  if (qs(req.query.archived) === 'true') {
+    filter.archivedAt = { $ne: null };
+  } else {
+    filter.archivedAt = null;
+    filter.createdAt = { $gte: activeWindow() };
+  }
+  if (qs(req.query.unreadOnly) === 'true') filter.isRead = false;
+  const category = qs(req.query.category);
+  if (category) filter.category = category;
+  const severity = qs(req.query.severity) || qs(req.query.priority);
+  if (severity) filter.$or = [{ severity }, { priority: severity }];
+  const search = qs(req.query.search);
+  if (search) {
+    const rx = searchRegex(search);
+    filter.$and = [{ $or: [{ title: rx }, { message: rx }] }];
+  }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await Notification.countDocuments(filter);
-    
-    // Count active unread notifications
-    const unreadCount = await Notification.countDocuments({ 
-      recipient: req.user._id, 
-      isRead: false, 
-      archivedAt: null,
-      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-    });
-
-    const notifications = await Notification.find(filter).sort('-createdAt').skip(skip).limit(parseInt(limit));
-    res.json({ success: true, count: notifications.length, total, unreadCount, pages: Math.ceil(total / parseInt(limit)), currentPage: parseInt(page), data: notifications });
-  } catch (error) { next(error); }
+  const pg = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+  const [notifications, total, unreadCount] = await Promise.all([
+    Notification.find(filter).sort('-createdAt').skip(pg.skip).limit(pg.limit).lean(),
+    Notification.countDocuments(filter),
+    Notification.countDocuments({ recipient: req.user._id, isRead: false, archivedAt: null, createdAt: { $gte: activeWindow() } })
+  ]);
+  res.json({
+    success: true,
+    count: notifications.length,
+    total,
+    unreadCount,
+    pages: Math.max(1, Math.ceil(total / pg.limit)),
+    currentPage: pg.page,
+    data: notifications
+  });
 };
 
-exports.deleteNotification = async (req, res, next) => {
-  try {
-    const notification = await Notification.findOneAndDelete({ _id: req.params.id, recipient: req.user._id });
-    if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
-    res.json({ success: true, message: 'Notification deleted successfully' });
-  } catch (error) { next(error); }
+const parseIds = (ids) => {
+  if (!Array.isArray(ids) || !ids.length) throw ApiError.badRequest('Please provide an array of notification IDs');
+  if (ids.length > 500) throw ApiError.badRequest('Too many notifications in one request (max 500)');
+  if (!ids.every((id) => isValidId(String(id)))) throw ApiError.badRequest('Invalid notification ID');
+  return ids.map(String);
 };
 
-exports.deleteBulkNotifications = async (req, res, next) => {
-  try {
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids)) {
-      return res.status(400).json({ success: false, message: 'Please provide an array of notification IDs' });
-    }
-    await Notification.deleteMany({ _id: { $in: ids }, recipient: req.user._id });
-    res.json({ success: true, message: `${ids.length} notifications deleted successfully` });
-  } catch (error) { next(error); }
+// @route DELETE /api/notifications/:id
+exports.deleteNotification = async (req, res) => {
+  if (!isValidId(req.params.id)) throw ApiError.notFound('Notification not found');
+  const n = await Notification.findOneAndDelete({ _id: req.params.id, recipient: req.user._id });
+  if (!n) throw ApiError.notFound('Notification not found');
+  res.json({ success: true, message: 'Notification deleted' });
 };
 
-exports.markAsRead = async (req, res, next) => {
-  try {
-    const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipient: req.user._id },
-      { isRead: true, readAt: new Date() },
-      { new: true }
-    );
-    if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
-    res.json({ success: true, data: notification });
-  } catch (error) { next(error); }
+// @route POST /api/notifications/delete-bulk  body: { ids }
+exports.deleteBulkNotifications = async (req, res) => {
+  const ids = parseIds(req.body.ids);
+  const result = await Notification.deleteMany({ _id: { $in: ids }, recipient: req.user._id });
+  res.json({ success: true, message: `${result.deletedCount} notification(s) deleted` });
 };
 
-exports.markAllAsRead = async (req, res, next) => {
-  try {
-    await Notification.updateMany({ recipient: req.user._id, isRead: false }, { isRead: true, readAt: new Date() });
-    res.json({ success: true, message: 'All notifications marked as read' });
-  } catch (error) { next(error); }
+// @route POST /api/notifications/read-bulk  body: { ids }
+exports.markBulkRead = async (req, res) => {
+  const ids = parseIds(req.body.ids);
+  const result = await Notification.updateMany({ _id: { $in: ids }, recipient: req.user._id, isRead: false }, { isRead: true, readAt: new Date() });
+  res.json({ success: true, message: `${result.modifiedCount} notification(s) marked as read` });
 };
 
-exports.archiveNotification = async (req, res, next) => {
-  try {
-    const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipient: req.user._id },
-      { archivedAt: new Date() },
-      { new: true }
-    );
-    if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
-    res.json({ success: true, data: notification, message: 'Notification archived' });
-  } catch (error) { next(error); }
+// @route PUT /api/notifications/:id/read  (body { isRead: false } marks as unread)
+exports.markAsRead = async (req, res) => {
+  if (!isValidId(req.params.id)) throw ApiError.notFound('Notification not found');
+  const isRead = req.body && req.body.isRead === false ? false : true;
+  const n = await Notification.findOneAndUpdate(
+    { _id: req.params.id, recipient: req.user._id },
+    isRead ? { isRead: true, readAt: new Date() } : { isRead: false, $unset: { readAt: 1 } },
+    { returnDocument: 'after' }
+  );
+  if (!n) throw ApiError.notFound('Notification not found');
+  res.json({ success: true, data: n });
 };
 
-exports.getNotificationStats = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
+// @route PUT /api/notifications/read-all
+exports.markAllAsRead = async (req, res) => {
+  const result = await Notification.updateMany({ recipient: req.user._id, isRead: false, archivedAt: null }, { isRead: true, readAt: new Date() });
+  res.json({ success: true, message: `${result.modifiedCount} notification(s) marked as read` });
+};
 
-    const stats = await Notification.aggregate([
-      { $match: { recipient: userId, archivedAt: null } },
-      {
-        $group: {
-          _id: '$category',
-          total: { $sum: 1 },
-          unread: { $sum: { $cond: [{ $eq: ['$isRead', false] }, 1, 0] } }
-        }
-      }
-    ]);
+// @route PUT /api/notifications/:id/archive  (body { archived: false } restores)
+exports.archiveNotification = async (req, res) => {
+  if (!isValidId(req.params.id)) throw ApiError.notFound('Notification not found');
+  const restore = req.body && req.body.archived === false;
+  const n = await Notification.findOneAndUpdate(
+    { _id: req.params.id, recipient: req.user._id },
+    restore ? { archivedAt: null } : { archivedAt: new Date(), isRead: true, readAt: new Date() },
+    { returnDocument: 'after' }
+  );
+  if (!n) throw ApiError.notFound('Notification not found');
+  res.json({ success: true, data: n, message: restore ? 'Notification restored' : 'Notification archived' });
+};
 
-    const totalUnread = await Notification.countDocuments({ recipient: userId, isRead: false, archivedAt: null });
-
-    const priorityStats = await Notification.aggregate([
-      { $match: { recipient: userId, isRead: false, archivedAt: null } },
-      {
-        $group: {
-          _id: '$severity',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        totalUnread,
-        byCategory: stats,
-        byPriority: priorityStats
-      }
-    });
-  } catch (error) { next(error); }
+// @route GET /api/notifications/stats
+exports.getNotificationStats = async (req, res) => {
+  const match = { recipient: req.user._id, archivedAt: null, createdAt: { $gte: activeWindow() } };
+  const [byCategory, bySeverity, totalUnread] = await Promise.all([
+    Notification.aggregate([
+      { $match: match },
+      { $group: { _id: '$category', total: { $sum: 1 }, unread: { $sum: { $cond: [{ $eq: ['$isRead', false] }, 1, 0] } } } }
+    ]),
+    Notification.aggregate([
+      { $match: { ...match, isRead: false } },
+      { $group: { _id: '$severity', count: { $sum: 1 } } }
+    ]),
+    Notification.countDocuments({ ...match, isRead: false })
+  ]);
+  res.json({ success: true, data: { totalUnread, byCategory, byPriority: bySeverity, bySeverity } });
 };

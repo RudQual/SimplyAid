@@ -79,7 +79,24 @@ const inspectionSchema = new mongoose.Schema({
   deficiencies: [deficiencySchema],
   overallNotes: {
     type: String,
-    trim: true
+    trim: true,
+    maxlength: 2000
+  },
+  // Snapshot of the kit's compliance at the time of inspection (inspection history)
+  complianceScore: {
+    type: Number,
+    min: 0,
+    max: 100
+  },
+  complianceStatus: {
+    type: String,
+    enum: ['compliant', 'at_risk', 'non_compliant']
+  },
+  findings: {
+    missingItems: { type: Number, default: 0 },
+    lowStockItems: { type: Number, default: 0 },
+    expiredUnits: { type: Number, default: 0 },
+    expiringSoonUnits: { type: Number, default: 0 }
   }
 }, {
   timestamps: true
@@ -88,15 +105,8 @@ const inspectionSchema = new mongoose.Schema({
 // Auto-generate inspection ID
 inspectionSchema.pre('save', async function() {
   if (!this.inspectionId) {
-    const year = new Date().getFullYear();
-    const count = await mongoose.model('Inspection').countDocuments({
-      company: this.company,
-      createdAt: {
-        $gte: new Date(`${year}-01-01`),
-        $lt: new Date(`${year + 1}-01-01`)
-      }
-    });
-    this.inspectionId = `INS-${year}-${String(count + 1).padStart(4, '0')}`;
+    const Counter = require('./Counter');
+    this.inspectionId = await Counter.nextYearlyId({ prefix: 'INS', model: 'Inspection', field: 'inspectionId', companyId: this.company });
   }
 });
 

@@ -1,84 +1,95 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../services/api';
-import { Plus, X, Edit2, Trash2, Building2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { Plus, Building2, Pencil, Trash2, Users, Boxes, MapPin } from 'lucide-react';
+import useAsync from '../hooks/useAsync';
+import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '../services/api';
+import { PageHeader, StatusBadge, EmptyState, ErrorState, Skeleton, Modal, Field, Spinner, useConfirm } from '../components/ui';
+import { errorMessage, labelize } from '../utils/format';
 
-const RISK_COLORS = { low: 'green', medium: 'amber', high: 'red', critical: 'fatal' };
+const RISK_TONE = { low: 'green', medium: 'amber', high: 'red', critical: 'red' };
+
+const DeptModal = ({ open, dept, onClose, onSaved }) => {
+  const [form, setForm] = useState({});
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setErrors({});
+    setForm(dept ? { name: dept.name, code: dept.code, location: dept.location || '', floor: dept.floor || '', riskLevel: dept.riskLevel || 'medium', description: dept.description || '' }
+      : { name: '', code: '', location: '', floor: '', riskLevel: 'medium', description: '' });
+  }, [open, dept]);
+  const set = (k) => (e) => { setForm((f) => ({ ...f, [k]: e.target.value })); setErrors((x) => ({ ...x, [k]: undefined })); };
+  const submit = async () => {
+    const er = {};
+    if (form.name.trim().length < 2) er.name = 'Enter a name';
+    if (!/^[A-Za-z0-9_-]{1,20}$/.test(form.code.trim())) er.code = '1–20 letters or numbers';
+    setErrors(er);
+    if (Object.keys(er).length) return;
+    setBusy(true);
+    const payload = { ...form, name: form.name.trim(), code: form.code.trim().toUpperCase() };
+    try {
+      const res = dept ? await updateDepartment(dept._id, payload) : await createDepartment(payload);
+      toast.success(res.data.message); onSaved(); onClose();
+    } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open={open} onClose={onClose} busy={busy} title={dept ? `Edit ${dept.name}` : 'New department'}
+      footer={<><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? <Spinner size="sm" light /> : 'Save'}</button></>}>
+      <div className="form-row">
+        <Field label="Name" required error={errors.name}><input value={form.name || ''} onChange={set('name')} autoFocus /></Field>
+        <Field label="Code" required error={errors.code}><input value={form.code || ''} onChange={set('code')} style={{ textTransform: 'uppercase' }} /></Field>
+      </div>
+      <div className="form-row">
+        <Field label="Location"><input value={form.location || ''} onChange={set('location')} /></Field>
+        <Field label="Risk level"><select value={form.riskLevel} onChange={set('riskLevel')}>{['low', 'medium', 'high', 'critical'].map((r) => <option key={r} value={r}>{labelize(r)}</option>)}</select></Field>
+      </div>
+      <Field label="Description"><textarea rows={2} value={form.description || ''} onChange={set('description')} /></Field>
+    </Modal>
+  );
+};
 
 const Departments = () => {
-  const { t, requireAuth } = useAuth();
-  const [depts, setDepts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', code: '', location: '', workerCount: '', riskLevel: 'medium', description: '' });
+  const confirm = useConfirm();
+  const [modal, setModal] = useState(null);
+  const depts = useAsync(() => getDepartments(), [], { select: (r) => r.data.data });
 
-  useEffect(() => { load(); }, []);
-  const load = async () => { try { const r = await getDepartments(); setDepts(r.data.data); } catch(e){} finally { setLoading(false); } };
-
-  const openAdd = () => { requireAuth(() => { setForm({ name: '', code: '', location: '', workerCount: '', riskLevel: 'medium', description: '' }); setEditing(null); setShowModal(true); }); };
-  const openEdit = (d) => { requireAuth(() => { setForm({ name: d.name, code: d.code, location: d.location || '', workerCount: d.workerCount || '', riskLevel: d.riskLevel, description: d.description || '' }); setEditing(d._id); setShowModal(true); }); };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editing) { await updateDepartment(editing, { ...form, workerCount: parseInt(form.workerCount) || 0 }); toast.success('Updated'); }
-      else { await createDepartment({ ...form, workerCount: parseInt(form.workerCount) || 0 }); toast.success('Created'); }
-      setShowModal(false); load();
-    } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
-  };
-
-  const handleDelete = async (id) => {
-    requireAuth(() => {
-      if (!confirm('Deactivate this department?')) return;
-      (async () => {
-        try { await deleteDepartment(id); toast.success('Deactivated'); load(); } catch(e) { toast.error('Failed'); }
-      })();
-    });
+  const remove = async (d) => {
+    const ok = await confirm({ title: `Deactivate ${d.name}?`, message: 'Departments with active people or kits can’t be deactivated — reassign them first.', confirmLabel: 'Deactivate', tone: 'danger' });
+    if (!ok) return;
+    try { const res = await deleteDepartment(d._id); toast.success(res.data.message); depts.refresh(); } catch (err) { toast.error(errorMessage(err)); }
   };
 
   return (
     <div className="page-content">
-      <div className="page-header">
-        <div><h1 className="page-title">{t('nav.departments')}</h1><p className="page-subtitle">Manage organizational departments</p></div>
-        <button className="btn btn-primary" onClick={openAdd}><Plus size={18} /> Add Department</button>
-      </div>
-      {loading ? <div className="page-loader"><div className="spinner"></div></div> : (
-        <div className="grid-3">{depts.map(d => (
-          <div key={d._id} className="card">
-            <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
-              <div style={{display:'flex',gap:10,alignItems:'center'}}>
-                <div style={{width:40,height:40,borderRadius:10,background:'rgba(99,102,241,0.1)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--info)'}}><Building2 size={20} /></div>
-                <div><div style={{fontWeight:700}}>{d.name}</div><div style={{fontSize:'0.78rem',color:'var(--text-muted)'}}>{d.code}</div></div>
+      <PageHeader title="Departments" subtitle="Organisational units that own kits and people."
+        actions={<button className="btn btn-primary" onClick={() => setModal({ dept: null })}><Plus size={16} /> New department</button>} />
+      {depts.loading && <div className="grid-3">{Array.from({ length: 6 }).map((_, i) => <div className="card" key={i}><Skeleton height={110} /></div>)}</div>}
+      {depts.error && <div className="card"><ErrorState error={depts.error} onRetry={depts.reload} /></div>}
+      {depts.data && depts.data.length === 0 && <div className="card"><EmptyState icon={Building2} title="No departments yet" /></div>}
+      {depts.data && depts.data.length > 0 && (
+        <div className="grid-3">
+          {depts.data.map((d) => (
+            <div key={d._id} className="card">
+              <div className="row-between">
+                <div className="row"><span className="stat-icon tone-blue"><Building2 size={18} /></span><div><div className="strong">{d.name}</div><div className="xsmall muted">{d.code}</div></div></div>
+                <StatusBadge value={RISK_TONE[d.riskLevel]} label={`${labelize(d.riskLevel)} risk`} />
               </div>
-              <div style={{display:'flex',gap:4}}>
-                <button className="btn btn-ghost btn-sm" style={{padding:6}} onClick={() => openEdit(d)}><Edit2 size={14} /></button>
-                <button className="btn btn-ghost btn-sm" style={{padding:6}} onClick={() => handleDelete(d._id)}><Trash2 size={14} /></button>
+              <div className="stack-sm small muted" style={{ marginTop: 14 }}>
+                {d.location && <span className="row"><MapPin size={14} /> {d.location}</span>}
+                <span className="row"><Users size={14} /> <Link to={`/employees?department=${d._id}`}>{d.employeeCount} people</Link></span>
+                <span className="row"><Boxes size={14} /> <Link to={`/kits?department=${d._id}`}>{d.kitCount} kits</Link></span>
+                {d.headOfDepartment && <span>Head: {d.headOfDepartment.name}</span>}
+              </div>
+              <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setModal({ dept: d })}><Pencil size={14} /> Edit</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => remove(d)}><Trash2 size={14} /> Deactivate</button>
               </div>
             </div>
-            <div style={{fontSize:'0.85rem',color:'var(--text-secondary)',display:'flex',flexDirection:'column',gap:4}}>
-              <div>Location: {d.location || '-'}</div>
-              <div>Workers: {d.workerCount}</div>
-              <div>Risk: <span className={`badge badge-${RISK_COLORS[d.riskLevel]}`}>{d.riskLevel}</span></div>
-              {d.headOfDepartment && <div>Head: {d.headOfDepartment.name}</div>}
-            </div>
-          </div>
-        ))}</div>
-      )}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3 className="modal-title">{editing ? 'Edit' : 'Add'} Department</h3><button className="modal-close" onClick={() => setShowModal(false)}><X size={18} /></button></div>
-            <form onSubmit={handleSubmit}>
-              <div className="form-row"><div className="form-group"><label className="form-label">Name *</label><input required value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))} /></div><div className="form-group"><label className="form-label">Code *</label><input required value={form.code} onChange={e => setForm(f=>({...f,code:e.target.value.toUpperCase()}))} /></div></div>
-              <div className="form-row"><div className="form-group"><label className="form-label">Location</label><input value={form.location} onChange={e => setForm(f=>({...f,location:e.target.value}))} /></div><div className="form-group"><label className="form-label">Workers</label><input type="number" value={form.workerCount} onChange={e => setForm(f=>({...f,workerCount:e.target.value}))} /></div></div>
-              <div className="form-group"><label className="form-label">Risk Level</label><select value={form.riskLevel} onChange={e => setForm(f=>({...f,riskLevel:e.target.value}))}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
-              <div className="modal-footer"><button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'}</button></div>
-            </form>
-          </div>
+          ))}
         </div>
       )}
+      <DeptModal open={Boolean(modal)} dept={modal?.dept} onClose={() => setModal(null)} onSaved={() => depts.refresh()} />
     </div>
   );
 };

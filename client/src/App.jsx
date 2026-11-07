@@ -1,139 +1,178 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ScannerProvider } from './contexts/ScannerContext';
-import Sidebar from './components/common/Sidebar';
-import Navbar from './components/common/Navbar';
-import AuthRequiredModal from './components/common/AuthRequiredModal';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Incidents from './pages/Incidents';
-import NewIncident from './pages/NewIncident';
-import IncidentDetail from './pages/IncidentDetail';
-import Inventory from './pages/Inventory';
-import Employees from './pages/Employees';
-import Departments from './pages/Departments';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
+import { NotificationProvider } from './contexts/NotificationContext';
+import { ConfirmProvider, PageLoader } from './components/ui';
+import Sidebar from './components/layout/Sidebar';
+import Topbar from './components/layout/Topbar';
+import GlobalSearch from './components/layout/GlobalSearch';
+import ErrorBoundary from './components/layout/ErrorBoundary';
+import './components/layout/layout.css';
 
-import EmployeeProfile from './pages/EmployeeProfile';
-import EmployeeIdCard from './pages/EmployeeIdCard';
-import ScanHistory from './pages/ScanHistory';
-import MyProfile from './pages/MyProfile';
-import QrScan from './pages/QrScan';
-import ManagerDashboard from './pages/ManagerDashboard';
-import DoctorDashboard from './pages/DoctorDashboard';
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const NotificationCenter = lazy(() => import('./pages/NotificationCenter'));
+const Incidents = lazy(() => import('./pages/Incidents'));
+const NewIncident = lazy(() => import('./pages/NewIncident'));
+const IncidentDetail = lazy(() => import('./pages/IncidentDetail'));
+const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
+const Treatments = lazy(() => import('./pages/Treatments'));
+const NewTreatment = lazy(() => import('./pages/NewTreatment'));
+const TreatmentDetail = lazy(() => import('./pages/TreatmentDetail'));
+const QrScan = lazy(() => import('./pages/QrScan'));
+const Kits = lazy(() => import('./pages/Kits'));
+const KitDetail = lazy(() => import('./pages/KitDetail'));
+const KitInspection = lazy(() => import('./pages/KitInspection'));
+const KitByCode = lazy(() => import('./pages/KitByCode'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const InventoryItemDetail = lazy(() => import('./pages/InventoryItemDetail'));
+const Expiry = lazy(() => import('./pages/Expiry'));
+const StockMovements = lazy(() => import('./pages/StockMovements'));
+const Compliance = lazy(() => import('./pages/Compliance'));
+const Inspections = lazy(() => import('./pages/Inspections'));
+const InspectionDetail = lazy(() => import('./pages/InspectionDetail'));
+const Reports = lazy(() => import('./pages/Reports'));
+const SafetyAnalytics = lazy(() => import('./pages/SafetyAnalytics'));
+const Employees = lazy(() => import('./pages/Employees'));
+const EmployeeProfile = lazy(() => import('./pages/EmployeeProfile'));
+const EmployeeIdCard = lazy(() => import('./pages/EmployeeIdCard'));
+const Departments = lazy(() => import('./pages/Departments'));
+const ScanHistory = lazy(() => import('./pages/ScanHistory'));
+const ActivityLog = lazy(() => import('./pages/ActivityLog'));
+const MyProfile = lazy(() => import('./pages/MyProfile'));
+const Settings = lazy(() => import('./pages/Settings'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
-// Phase 2 Pages
-import Treatments from './pages/Treatments';
-import NewTreatment from './pages/NewTreatment';
-import TreatmentDetail from './pages/TreatmentDetail';
-import ExpiryDashboard from './pages/ExpiryDashboard';
-import ComplianceDashboard from './pages/ComplianceDashboard';
-import NotificationCenter from './pages/NotificationCenter';
-import SafetyAnalytics from './pages/SafetyAnalytics';
-import BoxProfile from './pages/BoxProfile';
-import InspectionForm from './pages/InspectionForm';
-import AIAssistant from './pages/AIAssistant';
+const STAFF = ['admin', 'doctor', 'manager'];
+const MEDICAL = ['admin', 'doctor'];
 
-// Allows guests to view pages. Only blocks if a logged-in user lacks the required role.
-const GuestableRoute = ({ children, roles }) => {
+/** Requires sign-in; optionally restricts to roles (admins pass every role check). */
+const Protected = ({ roles, children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
-  // Guests can see everything — pages handle their own action-gating
-  if (!user) return children;
-  // Role check: redirect if logged-in user lacks required role
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
+  const location = useLocation();
+  if (loading) return <PageLoader />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  if (roles && user.role !== 'admin' && !roles.includes(user.role)) return <NotFound forbidden />;
   return children;
 };
 
-// Strictly protected — guests are redirected to login (for write-only pages)
-const ProtectedRoute = ({ children, roles }) => {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
-  if (!user) return <Navigate to="/login" />;
-  // Role check: redirect if logged-in user lacks required role
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
-  return children;
-};
-
-// Redirects logged-in managers/doctors to their specific dashboards from '/'
-const RoleRedirectHome = () => {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
-  if (user?.role === 'manager') return <Navigate to="/manager-dashboard" replace />;
-  if (user?.role === 'doctor') return <Navigate to="/doctor-dashboard" replace />;
-  return <Dashboard />;
-};
+const LegacyInspectRedirect = () => <Navigate to={`/kits/${useParams().id}/inspect`} replace />;
+const LegacyScanRedirect = () => <Navigate to={`/kits/code/${useParams().boxId}`} replace />;
 
 const AppLayout = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('simplyaid_sidebar') === 'collapsed');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const location = useLocation();
+
+  const toggle = useCallback(() => setCollapsed((c) => {
+    localStorage.setItem('simplyaid_sidebar', c ? 'expanded' : 'collapsed');
+    return !c;
+  }), []);
+
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearchOpen(true); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="app-layout">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
-      <Navbar />
+      <Sidebar collapsed={collapsed} onToggle={toggle} mobileOpen={mobileOpen} onNavigate={() => setMobileOpen(false)} />
+      <Topbar collapsed={collapsed} onMenu={() => setMobileOpen(true)} onSearch={() => setSearchOpen(true)} />
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
-        <Routes>
-          <Route path="/" element={<RoleRedirectHome />} />
-          <Route path="/incidents" element={<GuestableRoute><Incidents /></GuestableRoute>} />
-          <Route path="/incidents/new" element={<ProtectedRoute><NewIncident /></ProtectedRoute>} />
-          <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
+        <ErrorBoundary key={location.pathname}>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/notifications" element={<NotificationCenter />} />
 
-          {/* Doctor-only routes */}
-          <Route path="/inventory" element={<ProtectedRoute roles={['doctor']}><Inventory /></ProtectedRoute>} />
-          <Route path="/treatments" element={<ProtectedRoute roles={['doctor']}><Treatments /></ProtectedRoute>} />
-          <Route path="/treatments/new" element={<ProtectedRoute roles={['doctor']}><NewTreatment /></ProtectedRoute>} />
-          <Route path="/treatments/:id" element={<ProtectedRoute roles={['doctor']}><TreatmentDetail /></ProtectedRoute>} />
-          <Route path="/inventory/boxes/scan/:boxId" element={<ProtectedRoute><BoxProfile /></ProtectedRoute>} />
-          <Route path="/inventory/boxes/:boxId/inspect" element={<ProtectedRoute roles={['doctor']}><InspectionForm /></ProtectedRoute>} />
-          <Route path="/expiry" element={<ProtectedRoute roles={['doctor']}><ExpiryDashboard /></ProtectedRoute>} />
-          <Route path="/compliance" element={<ProtectedRoute roles={['doctor']}><ComplianceDashboard /></ProtectedRoute>} />
-          <Route path="/analytics" element={<ProtectedRoute roles={['doctor']}><SafetyAnalytics /></ProtectedRoute>} />
-          <Route path="/ai-assistant" element={<ProtectedRoute roles={['doctor']}><AIAssistant /></ProtectedRoute>} />
+              <Route path="/incidents" element={<Incidents />} />
+              <Route path="/incidents/new" element={<NewIncident />} />
+              <Route path="/incidents/:id" element={<IncidentDetail />} />
+              <Route path="/reviews" element={<Protected roles={['doctor', 'manager']}><ReviewQueue /></Protected>} />
+              <Route path="/treatments" element={<Protected roles={MEDICAL}><Treatments /></Protected>} />
+              <Route path="/treatments/new" element={<Protected roles={MEDICAL}><NewTreatment /></Protected>} />
+              <Route path="/treatments/:id" element={<Protected roles={MEDICAL}><TreatmentDetail /></Protected>} />
+              <Route path="/qr-scan" element={<QrScan />} />
 
-          <Route path="/departments" element={<ProtectedRoute roles={['doctor']}><Departments /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute roles={['doctor']}><Settings /></ProtectedRoute>} />
+              <Route path="/kits" element={<Protected roles={STAFF}><Kits /></Protected>} />
+              <Route path="/kits/code/:boxId" element={<KitByCode />} />
+              <Route path="/kits/:id" element={<Protected roles={STAFF}><KitDetail /></Protected>} />
+              <Route path="/kits/:id/inspect" element={<Protected roles={STAFF}><KitInspection /></Protected>} />
+              <Route path="/inventory" element={<Protected roles={STAFF}><Inventory /></Protected>} />
+              <Route path="/inventory/:id" element={<Protected roles={STAFF}><InventoryItemDetail /></Protected>} />
+              <Route path="/expiry" element={<Protected roles={STAFF}><Expiry /></Protected>} />
+              <Route path="/stock-movements" element={<Protected roles={STAFF}><StockMovements /></Protected>} />
 
-          {/* Manager-only routes */}
-          <Route path="/manager-dashboard" element={<ProtectedRoute roles={['manager']}><ManagerDashboard /></ProtectedRoute>} />
+              <Route path="/compliance" element={<Protected roles={STAFF}><Compliance /></Protected>} />
+              <Route path="/inspections" element={<Protected roles={STAFF}><Inspections /></Protected>} />
+              <Route path="/inspections/:id" element={<Protected roles={STAFF}><InspectionDetail /></Protected>} />
+              <Route path="/reports" element={<Protected roles={STAFF}><Reports /></Protected>} />
+              <Route path="/analytics" element={<Protected roles={STAFF}><SafetyAnalytics /></Protected>} />
 
-          {/* Doctor-only dashboard */}
-          <Route path="/doctor-dashboard" element={<ProtectedRoute roles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
+              <Route path="/employees" element={<Protected roles={STAFF}><Employees /></Protected>} />
+              <Route path="/employees/:id" element={<Protected roles={STAFF}><EmployeeProfile /></Protected>} />
+              <Route path="/employees/:id/card" element={<Protected roles={STAFF}><EmployeeIdCard /></Protected>} />
+              <Route path="/departments" element={<Protected roles={MEDICAL}><Departments /></Protected>} />
+              <Route path="/scan-history" element={<Protected roles={STAFF}><ScanHistory /></Protected>} />
+              <Route path="/activity" element={<Protected roles={MEDICAL}><ActivityLog /></Protected>} />
 
-          {/* Shared routes (doctor + manager) */}
-          <Route path="/employees" element={<ProtectedRoute roles={['doctor', 'manager']}><Employees /></ProtectedRoute>} />
-          <Route path="/employees/:id" element={<ProtectedRoute roles={['doctor', 'manager']}><EmployeeProfile /></ProtectedRoute>} />
-          <Route path="/employees/:id/card" element={<ProtectedRoute roles={['doctor', 'manager']}><EmployeeIdCard /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute roles={['doctor', 'manager']}><Reports /></ProtectedRoute>} />
-          <Route path="/scan-history" element={<ProtectedRoute roles={['doctor', 'manager']}><ScanHistory /></ProtectedRoute>} />
+              <Route path="/profile" element={<MyProfile />} />
+              <Route path="/settings" element={<Settings />} />
 
-          {/* All authenticated users */}
-          <Route path="/notifications" element={<ProtectedRoute><NotificationCenter /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
-          <Route path="/qr-scan" element={<ProtectedRoute><QrScan /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+              {/* Old URLs */}
+              <Route path="/manager-dashboard" element={<Navigate to="/reviews" replace />} />
+              <Route path="/doctor-dashboard" element={<Navigate to="/reviews" replace />} />
+              <Route path="/inventory/boxes/scan/:boxId" element={<LegacyScanRedirect />} />
+              <Route path="/inventory/boxes/:id/inspect" element={<LegacyInspectRedirect />} />
+              <Route path="/compliance-dashboard" element={<Navigate to="/compliance" replace />} />
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </main>
-      <AuthRequiredModal />
     </div>
   );
 };
 
-const App = () => {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ScannerProvider>
-          <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#ffffff', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' } }} />
+const App = () => (
+  <BrowserRouter>
+    <AuthProvider>
+      <ConfirmProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 3500,
+            style: { background: '#0f172a', color: '#f8fafc', borderRadius: '10px', fontSize: '0.9rem', padding: '10px 14px' },
+            success: { iconTheme: { primary: '#14b8a6', secondary: '#0f172a' } },
+            error: { iconTheme: { primary: '#f87171', secondary: '#0f172a' }, duration: 5000 }
+          }}
+        />
+        <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/*" element={<AppLayout />} />
+            <Route path="/*" element={(
+              <Protected>
+                <ScannerProvider>
+                  <NotificationProvider>
+                    <AppLayout />
+                  </NotificationProvider>
+                </ScannerProvider>
+              </Protected>
+            )} />
           </Routes>
-        </ScannerProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  );
-};
+        </Suspense>
+      </ConfirmProvider>
+    </AuthProvider>
+  </BrowserRouter>
+);
 
 export default App;

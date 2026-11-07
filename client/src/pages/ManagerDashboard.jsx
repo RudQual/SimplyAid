@@ -173,8 +173,8 @@ const ManagerDashboard = () => {
     <div className="page-content">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Manager Dashboard</h1>
-          <p className="page-subtitle">Review incidents and assist employees on-site</p>
+          <h1 className="page-title">Incident review queue</h1>
+          <p className="page-subtitle">Confirm reports from your department and complete them on-site when employees need help.</p>
         </div>
         <div className="stats-badge" style={{ cursor: 'pointer' }} onClick={() => loadAll()}>
           <AlertTriangle size={18} />

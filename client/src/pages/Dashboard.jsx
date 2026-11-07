@@ -1,219 +1,366 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import {
+  Boxes, Package, PackageX, CalendarX2, CalendarClock, ShieldCheck, AlertTriangle, ArrowRight, Activity, FilePlus2,
+  ScanLine, UserRound, Siren, CheckCircle2, ClipboardList, RefreshCw
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getIncidentStats, getIncidents, getComplianceStatus } from '../services/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { AlertTriangle, ShieldCheck, Clock, TrendingUp, Plus, ClipboardCheck, FileBarChart, Activity } from 'lucide-react';
+import { useNotifications } from '../contexts/NotificationContext';
+import useAsync from '../hooks/useAsync';
+import { getDashboard, getIncidents } from '../services/api';
+import {
+  PageHeader, StatCard, Card, StatusBadge, ProgressBar, ScoreRing, EmptyState, ErrorState, SkeletonStats, Skeleton
+} from '../components/ui';
+import { daysLabel, formatNumber, labelize, timeAgo, formatDate } from '../utils/format';
 import './Dashboard.css';
 
-const COLORS = ['#3b82f6', '#f59e0b', '#ef4444', '#10b981', '#6366f1', '#ec4899'];
+const KIT_STATUS = [
+  { key: 'adequate', label: 'Adequate', color: 'var(--success-600)' },
+  { key: 'needs_replenishment', label: 'Needs restock', color: '#ea580c' },
+  { key: 'overdue_inspection', label: 'Inspection due', color: '#eab308' },
+  { key: 'items_expired', label: 'Expired items', color: 'var(--danger-600)' }
+];
 
-const Dashboard = () => {
-  const { t, user, hasRole, isGuest, requireAuth } = useAuth();
-  const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
-  const [compliance, setCompliance] = useState(null);
-  const [recentIncidents, setRecentIncidents] = useState([]);
-  const [loading, setLoading] = useState(true);
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+};
 
-  useEffect(() => {
-    loadData();
-  }, []);
+const ChartTooltip = ({ active, payload, label, unit }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="chart-tip">
+      <div className="chart-tip-label">{label}</div>
+      <div className="chart-tip-value">{formatNumber(payload[0].value)} {unit}</div>
+    </div>
+  );
+};
 
-  const loadData = async () => {
-    try {
-      const [statsRes, incidentsRes] = await Promise.all([
-        getIncidentStats({ period: 30 }),
-        getIncidents({ limit: 5 })
-      ]);
-      setStats(statsRes.data.data);
-      setRecentIncidents(incidentsRes.data.data);
-      if (hasRole('doctor')) {
-        const compRes = await getComplianceStatus();
-        setCompliance(compRes.data.data);
-      }
-    } catch (e) { /* Guests will get 401 — gracefully show empty */ }
-    finally { setLoading(false); }
-  };
+const KitStatusBar = ({ byStatus, total }) => {
+  if (!total) return <p className="small muted">No active kits yet.</p>;
+  return (
+    <div>
+      <div className="status-stack" role="img" aria-label="Kit status breakdown">
+        {KIT_STATUS.map((s) => {
+          const count = byStatus.find((b) => b.status === s.key)?.count || 0;
+          if (!count) return null;
+          return <span key={s.key} style={{ flex: count, background: s.color }} title={`${s.label}: ${count}`} />;
+        })}
+      </div>
+      <div className="status-legend">
+        {KIT_STATUS.map((s) => {
+          const count = byStatus.find((b) => b.status === s.key)?.count || 0;
+          return (
+            <Link key={s.key} to={`/kits?status=${s.key}`} className="status-legend-item">
+              <span className="swatch" style={{ background: s.color }} />
+              <span>{s.label}</span>
+              <strong>{count}</strong>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
-  if (loading) return <div className="page-loader"><div className="spinner"></div></div>;
-
-  const summary = stats?.summary || {};
-  const monthlyData = (stats?.monthlyTrend || []).map(m => ({
-    month: `${m._id.year}-${String(m._id.month).padStart(2,'0')}`,
-    count: m.count, serious: m.serious
-  }));
-  const typeData = (stats?.typeBreakdown || []).map(t => ({ name: t._id, value: t.count }));
-  const deptData = (stats?.departmentStats || []).map(d => ({ name: d.department?.name || 'Unknown', count: d.count, serious: d.serious }));
-
-  const welcomeName = isGuest ? t('guest.welcome').replace(', ', ', ') : `Welcome back, ${user?.name}`;
+const StaffDashboard = ({ data, user }) => {
+  const c = data.compliance;
+  const exp = data.expiry;
+  const inv = data.inventory;
+  const categoryData = [...data.inventoryByCategory].sort((a, b) => b.units - a.units).map((x) => ({ name: labelize(x.category), units: x.units }));
 
   return (
-    <div className="page-content">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t('dashboard.title')}</h1>
-          <p className="page-subtitle">{isGuest ? t('guest.subtitle') : `${welcomeName}. Here's your safety overview.`}</p>
-        </div>
-        <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => requireAuth(() => navigate('/incidents/new'))}><Plus size={18} />{t('dashboard.reportIncident')}</button>
-        </div>
-      </div>
-
-      {/* Profile Completion Banner */}
-      {user && user.profileCompletionPercentage !== undefined && user.profileCompletionPercentage < 100 && (
-        <div 
-          className="profile-completion-banner" 
-          onClick={() => navigate('/profile')}
-          style={{
-            backgroundColor: user.profileCompletionPercentage < 50 ? 'rgba(220, 38, 38, 0.1)' : 'rgba(249, 115, 22, 0.1)',
-            border: `1px solid ${user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316'}`,
-            borderRadius: '10px',
-            padding: '16px 20px',
-            marginBottom: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            transition: 'transform 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <AlertTriangle color={user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316'} size={24} />
-            <div>
-              <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1rem' }}>Complete your profile to unlock all SimplyAID features</h4>
-              <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                Your profile is currently {user.profileCompletionPercentage}% complete.
-              </p>
-            </div>
-          </div>
-          <button className="btn btn-primary" style={{ 
-            backgroundColor: user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316', 
-            borderColor: user.profileCompletionPercentage < 50 ? '#DC2626' : '#F97316',
-            pointerEvents: 'none'
-          }}>
-            Complete Profile
-          </button>
-        </div>
-      )}
-
-      {/* Stat Cards */}
-      <div className="grid-stats" style={{marginBottom: 24}}>
-        <div className="stat-card blue">
-          <div className="stat-icon blue"><Activity size={24} /></div>
-          <div><div className="stat-value">{summary.total || 0}</div><div className="stat-label">{t('dashboard.totalIncidents')} (30d)</div></div>
-        </div>
-        <div className="stat-card amber">
-          <div className="stat-icon amber"><Clock size={24} /></div>
-          <div><div className="stat-value">{summary.openCases || 0}</div><div className="stat-label">{t('dashboard.openCases')}</div></div>
-        </div>
-        <div className="stat-card red">
-          <div className="stat-icon red"><AlertTriangle size={24} /></div>
-          <div><div className="stat-value">{summary.totalDaysLost || 0}</div><div className="stat-label">{t('dashboard.daysLost')}</div></div>
-        </div>
-        {compliance && (
-          <div className={`stat-card ${compliance.overallCompliance >= 80 ? 'green' : compliance.overallCompliance >= 50 ? 'amber' : 'red'}`}>
-            <div className={`stat-icon ${compliance.overallCompliance >= 80 ? 'green' : compliance.overallCompliance >= 50 ? 'amber' : 'red'}`}><ShieldCheck size={24} /></div>
-            <div><div className="stat-value">{compliance.overallCompliance}%</div><div className="stat-label">{t('dashboard.compliance')}</div></div>
-          </div>
+    <>
+      <div className="stat-grid">
+        <StatCard label="First aid kits" value={formatNumber(data.kits.total)} icon={Boxes} tone="blue" to="/kits"
+          meta={<>{data.kits.byStatus.find((s) => s.status === 'adequate')?.count || 0} fully adequate</>} />
+        <StatCard label="Inventory items" value={formatNumber(inv.catalogItems)} icon={Package} tone="teal" to="/inventory"
+          meta={<>{formatNumber(inv.totalUnits)} units across all kits</>} />
+        <StatCard label="Low-stock items" value={formatNumber(inv.lowStockItems + inv.outOfStockItems)} icon={PackageX} tone="amber" to="/inventory?stockStatus=low_stock"
+          meta={<>{inv.outOfStockSlots} kit slot{inv.outOfStockSlots === 1 ? '' : 's'} completely empty</>} />
+        <StatCard label="Expired units" value={formatNumber(exp.expiredUnits)} icon={CalendarX2} tone="red" to="/expiry?status=expired"
+          meta={<>{exp.expiredCount} batch{exp.expiredCount === 1 ? '' : 'es'} to remove</>} />
+        <StatCard label="Expiring ≤ 30 days" value={formatNumber(exp.expiringSoonUnits)} icon={CalendarClock} tone="violet" to="/expiry?status=attention"
+          meta={<>{exp.critical7Count} batch{exp.critical7Count === 1 ? '' : 'es'} within 7 days</>} />
+        {c && (
+          <StatCard label="Compliance score" value={`${c.overallCompliance}%`} icon={ShieldCheck} tone={c.complianceStatus === 'compliant' ? 'green' : c.complianceStatus === 'at_risk' ? 'amber' : 'red'} to="/compliance"
+            meta={<StatusBadge value={c.complianceStatus} />} />
         )}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid-2" style={{marginBottom: 24}}>
-        <div className="card">
-          <div className="card-header"><h3 className="card-title">{t('dashboard.trend')}</h3></div>
-          {monthlyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-                <XAxis dataKey="month" stroke="var(--text-muted)" fontSize={12} />
-                <YAxis stroke="var(--text-muted)" fontSize={12} />
-                <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-main)', boxShadow: 'var(--shadow-md)' }} />
-                <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6' }} name="Total" />
-                <Line type="monotone" dataKey="serious" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444' }} name="Serious" />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : <div className="empty-state"><p>No trend data yet</p></div>}
-        </div>
+      <div className="dash-grid">
+        {/* Compliance */}
+        {c && (
+          <Card title="Compliance status" icon={ShieldCheck} actions={<Link to="/compliance" className="card-link">Details <ArrowRight size={14} /></Link>}>
+            <div className="compliance-hero">
+              <ScoreRing score={c.overallCompliance} label="overall" />
+              <div className="compliance-checks">
+                {c.checks.map((k) => (
+                  <div key={k.key} className="check-row">
+                    {k.compliant ? <CheckCircle2 size={16} className="text-green" /> : <AlertTriangle size={16} className={k.status === 'yellow' ? 'text-amber' : 'text-red'} />}
+                    <span className="truncate">{k.rule}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
 
-        <div className="card">
-          <div className="card-header"><h3 className="card-title">{t('dashboard.departmentOverview')}</h3></div>
-          {deptData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={deptData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} angle={-20} textAnchor="end" height={60} />
-                <YAxis stroke="var(--text-muted)" fontSize={12} />
-                <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-main)', boxShadow: 'var(--shadow-md)' }} />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4,4,0,0]} name="Incidents" />
-                <Bar dataKey="serious" fill="#ef4444" radius={[4,4,0,0]} name="Serious" />
+        {/* Actionable alerts */}
+        <Card title="Needs attention" icon={AlertTriangle} flush actions={<Link to="/notifications" className="card-link">All alerts <ArrowRight size={14} /></Link>}>
+          {(c?.pendingActions?.length || data.alerts.length) ? (
+            <div className="list">
+              {(c?.pendingActions || []).map((a) => (
+                <Link key={a.message} to={a.link || '/compliance'} className="list-item">
+                  <span className={`list-icon ${a.severity === 'critical' ? 'tone-red' : 'tone-amber'}`}><AlertTriangle size={16} /></span>
+                  <div className="list-item-main"><div className="list-item-title" style={{ whiteSpace: 'normal' }}>{a.message}</div></div>
+                  <ArrowRight size={15} className="faint" />
+                </Link>
+              ))}
+              {data.alerts.slice(0, Math.max(0, 6 - (c?.pendingActions?.length || 0))).map((n) => (
+                <Link key={n._id} to={n.link || '/notifications'} className="list-item">
+                  <span className={`list-icon ${n.severity === 'critical' ? 'tone-red' : n.severity === 'warning' ? 'tone-amber' : 'tone-blue'}`}><Activity size={16} /></span>
+                  <div className="list-item-main">
+                    <div className="list-item-title">{n.title}</div>
+                    <div className="list-item-sub">{timeAgo(n.createdAt)}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : <EmptyState icon={CheckCircle2} title="Nothing needs attention" description="All kits are stocked, in date and inspected." />}
+        </Card>
+
+        {/* Kit status */}
+        <Card title="Kit status" icon={Boxes} subtitle={`${data.kits.total} active kit${data.kits.total === 1 ? '' : 's'}`}>
+          <KitStatusBar byStatus={data.kits.byStatus} total={data.kits.total} />
+          {data.kits.attention.length > 0 && (
+            <div className="attention-kits">
+              {data.kits.attention.map((k) => (
+                <Link key={k._id} to={`/kits/${k._id}`} className="attention-kit">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="strong small">{k.boxId}</div>
+                    <div className="xsmall muted truncate">{k.location}</div>
+                  </div>
+                  <StatusBadge value={k.status} />
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Stock by department */}
+        <Card title="Stock level by department" icon={Package} subtitle="Share of required units present in each department’s kits">
+          {data.stockByDepartment.length ? (
+            <div className="dept-bars">
+              {data.stockByDepartment.map((d) => (
+                <div key={d.department} className="dept-bar">
+                  <div className="row-between small">
+                    <span className="strong truncate">{d.department}</span>
+                    <span className="muted nowrap"><strong className="strong">{d.fillRate}%</strong> · {d.kits} kit{d.kits === 1 ? '' : 's'}{d.lowItems ? ` · ${d.lowItems} low` : ''}</span>
+                  </div>
+                  <ProgressBar value={d.fillRate} tone="blue" />
+                </div>
+              ))}
+            </div>
+          ) : <EmptyState title="No kits yet" />}
+        </Card>
+
+        {/* Inventory distribution */}
+        <Card title="Inventory by category" icon={Package} subtitle="Units currently in stock">
+          {categoryData.length ? (
+            <div style={{ height: 240 }}>
+              <ResponsiveContainer initialDimension={{ width: 480, height: 220 }}>
+                <BarChart data={categoryData} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }} barCategoryGap={6}>
+                  <CartesianGrid horizontal={false} stroke="var(--slate-150)" />
+                  <XAxis type="number" tick={{ fontSize: 12, fill: 'var(--slate-500)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" width={86} tick={{ fontSize: 12, fill: 'var(--slate-600)' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip unit="units" />} cursor={{ fill: 'var(--slate-100)' }} />
+                  <Bar dataKey="units" fill="var(--brand-600)" radius={[0, 4, 4, 0]} maxBarSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <EmptyState title="No inventory yet" />}
+        </Card>
+
+        {/* Expiry timeline */}
+        <Card title="Expiry outlook" icon={CalendarClock} subtitle="Units expiring in each of the next six months" actions={<Link to="/expiry" className="card-link">Expiry tracking <ArrowRight size={14} /></Link>}>
+          <div style={{ height: 220 }}>
+            <ResponsiveContainer initialDimension={{ width: 480, height: 220 }}>
+              <BarChart data={exp.timeline} margin={{ left: -12, right: 8, top: 8, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="var(--slate-150)" />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: 'var(--slate-500)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: 'var(--slate-500)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip unit="units expiring" />} cursor={{ fill: 'var(--slate-100)' }} />
+                <Bar dataKey="units" fill="var(--teal-600)" radius={[4, 4, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
-          ) : <div className="empty-state"><p>No department data yet</p></div>}
-        </div>
-      </div>
-
-      {/* Bottom row */}
-      <div className="grid-2">
-        {/* Recent Incidents */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">{t('dashboard.recentIncidents')}</h3>
-            <button className="btn btn-ghost btn-sm" onClick={() => requireAuth(() => navigate('/incidents'))}>{t('common.view')} All</button>
           </div>
-          {recentIncidents.length > 0 ? (
-            <div className="table-container" style={{border:'none'}}>
+        </Card>
+
+        {/* Expiring soon */}
+        <Card title="Expired & expiring soon" icon={CalendarX2} flush>
+          {data.expiringSoon.length ? (
+            <div className="table-container">
               <table className="data-table">
-                <thead><tr><th>ID</th><th>{t('incidents.severity')}</th><th>{t('incidents.department')}</th><th>{t('incidents.status')}</th></tr></thead>
+                <thead><tr><th>Item</th><th>Kit</th><th className="num">Qty</th><th>Expiry</th></tr></thead>
                 <tbody>
-                  {recentIncidents.map(inc => (
-                    <tr key={inc._id} onClick={() => requireAuth(() => navigate(`/incidents/${inc._id}`))} style={{cursor:'pointer'}}>
-                      <td style={{fontWeight:600,color:'var(--accent)'}}>{inc.incidentId}</td>
-                      <td><span className={`badge badge-${inc.severity}`}>{t(`incidents.${inc.severity}`)}</span></td>
-                      <td>{inc.department?.name}</td>
-                      <td><span className={`badge badge-${inc.status}`}>{t(`incidents.${inc.status}`)}</span></td>
+                  {data.expiringSoon.map((e) => (
+                    <tr key={e.stockId}>
+                      <td><div className="cell-primary">{e.itemName}</div><div className="cell-sub">{e.batchNumber || 'No batch no.'}</div></td>
+                      <td><Link to={`/kits/${e.boxObjId}`}>{e.boxId}</Link></td>
+                      <td className="num">{e.currentQty}</td>
+                      <td><StatusBadge value={e.status} label={e.status === 'expired' ? `Expired ${daysLabel(e.daysRemaining)}` : daysLabel(e.daysRemaining)} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          ) : <div className="empty-state"><p>No incidents reported yet</p></div>}
-        </div>
+          ) : <EmptyState icon={CheckCircle2} title="Nothing expiring in the next 30 days" />}
+        </Card>
 
-        {/* Quick Actions + Type Breakdown */}
-        <div style={{display:'flex',flexDirection:'column',gap:20}}>
-          <div className="card">
-            <h3 className="card-title" style={{marginBottom:16}}>{t('dashboard.quickActions')}</h3>
-            <div className="quick-actions">
-              <button className="quick-action-btn" onClick={() => requireAuth(() => navigate('/incidents/new'))}>
-                <Plus size={20} /><span>{t('dashboard.reportIncident')}</span>
-              </button>
-              <button className="quick-action-btn" onClick={() => requireAuth(() => navigate('/inventory'))}>
-                <ClipboardCheck size={20} /><span>{t('dashboard.inspectBox')}</span>
-              </button>
-              <button className="quick-action-btn" onClick={() => requireAuth(() => navigate('/reports'))}>
-                <FileBarChart size={20} /><span>{t('dashboard.viewReports')}</span>
-              </button>
+        {/* Low stock items */}
+        <Card title="Low-stock items" icon={PackageX} flush actions={<Link to="/inventory?stockStatus=low_stock" className="card-link">Inventory <ArrowRight size={14} /></Link>}>
+          {data.lowStockItems.length ? (
+            <div className="list">
+              {data.lowStockItems.map((i) => (
+                <Link key={i._id} to={`/inventory/${i._id}`} className="list-item">
+                  <div className="list-item-main">
+                    <div className="row-between">
+                      <span className="list-item-title">{i.name}</span>
+                      <StatusBadge value={i.stockStatus} />
+                    </div>
+                    <div className="row" style={{ marginTop: 6 }}>
+                      <div style={{ flex: 1 }}><ProgressBar value={i.fillRate} /></div>
+                      <span className="xsmall muted nowrap">{i.totalQty}/{i.totalRequired} {i.unit} · {i.lowStockBoxes} kit{i.lowStockBoxes === 1 ? '' : 's'} short</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-          </div>
-          {typeData.length > 0 && (
-            <div className="card" style={{flex:1}}>
-              <h3 className="card-title" style={{marginBottom:8}}>By Type</h3>
-              <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
-                  <Pie data={typeData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={4} dataKey="value" label={({name,value}) => `${name}: ${value}`} labelLine={false}>
-                    {typeData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+          ) : <EmptyState icon={CheckCircle2} title="Every kit meets its required quantities" />}
+        </Card>
+
+        {/* Recent activity */}
+        <Card title="Recent activity" icon={Activity} flush actions={user.role !== 'manager' && <Link to="/activity" className="card-link">Activity log <ArrowRight size={14} /></Link>}>
+          {data.recentActivity.length ? (
+            <div className="list">
+              {data.recentActivity.map((a) => (
+                <div key={a._id} className="list-item">
+                  <span className="avatar avatar-sm">{(a.userName || 'S').charAt(0)}</span>
+                  <div className="list-item-main">
+                    <div className="list-item-title" style={{ fontWeight: 500 }}><strong>{a.userName || 'System'}</strong> · {a.action}{a.entityLabel ? ` · ${a.entityLabel}` : ''}</div>
+                    <div className="list-item-sub">{a.details || labelize(a.entity)} · {timeAgo(a.createdAt)}</div>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+          ) : <EmptyState title="No activity yet" />}
+        </Card>
       </div>
+    </>
+  );
+};
+
+const EmployeeDashboard = ({ user }) => {
+  const navigate = useNavigate();
+  const { recent } = useNotifications();
+  const incidents = useAsync(() => getIncidents({ limit: 5 }), []);
+  const actions = [
+    { icon: FilePlus2, label: 'Report an incident', text: 'Log an injury, illness or near miss', to: '/incidents/new', tone: 'blue' },
+    { icon: ScanLine, label: 'Scan a QR code', text: 'Open a kit or a colleague’s emergency card', to: '/qr-scan', tone: 'teal' },
+    { icon: UserRound, label: 'My profile', text: 'Keep your medical & emergency details current', to: '/profile', tone: 'violet' },
+    { icon: ClipboardList, label: 'My incidents', text: 'Track the status of your reports', to: '/incidents', tone: 'amber' }
+  ];
+  return (
+    <>
+      {user.profileCompletionPercentage < 100 && (
+        <div className="alert alert-info mb-24">
+          <UserRound size={18} />
+          <div style={{ flex: 1 }}>
+            <div className="alert-title">Your profile is {user.profileCompletionPercentage || 0}% complete</div>
+            <div className="small">First responders rely on your blood group, allergies and emergency contact.</div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => navigate('/profile')}>Complete profile</button>
+        </div>
+      )}
+      <div className="quick-grid mb-24">
+        {actions.map((a) => (
+          <Link key={a.to} to={a.to} className="card card-interactive quick-card">
+            <span className={`stat-icon tone-${a.tone}`}><a.icon size={18} /></span>
+            <div><div className="strong">{a.label}</div><div className="small muted">{a.text}</div></div>
+          </Link>
+        ))}
+      </div>
+      <div className="alert alert-danger mb-24">
+        <Siren size={18} />
+        <div><div className="alert-title">In an emergency, press SOS</div><div className="small">The red SOS button at the top creates an emergency report and alerts your manager and the medical team immediately.</div></div>
+      </div>
+      <div className="grid-2">
+        <Card title="My recent incidents" flush actions={<Link to="/incidents" className="card-link">View all <ArrowRight size={14} /></Link>}>
+          {incidents.loading ? <div style={{ padding: 20 }}><Skeleton height={60} /></div>
+            : incidents.error ? <ErrorState error={incidents.error} onRetry={incidents.reload} />
+              : incidents.data?.data?.length ? (
+                <div className="list">
+                  {incidents.data.data.map((i) => (
+                    <Link key={i._id} to={`/incidents/${i._id}`} className="list-item">
+                      <div className="list-item-main">
+                        <div className="list-item-title">{i.incidentId} · {labelize(i.incidentType)}</div>
+                        <div className="list-item-sub">{formatDate(i.dateTime)} · {i.location}</div>
+                      </div>
+                      <StatusBadge value={i.status} />
+                    </Link>
+                  ))}
+                </div>
+              ) : <EmptyState title="No incidents reported" description="Stay safe! Anything you report will appear here." />}
+        </Card>
+        <Card title="Latest notifications" flush actions={<Link to="/notifications" className="card-link">View all <ArrowRight size={14} /></Link>}>
+          {recent.length ? (
+            <div className="list">
+              {recent.slice(0, 5).map((n) => (
+                <div key={n._id} className="list-item">
+                  <div className="list-item-main"><div className="list-item-title">{n.title}</div><div className="list-item-sub">{timeAgo(n.createdAt)}</div></div>
+                  {!n.isRead && <span className="badge badge-blue">New</span>}
+                </div>
+              ))}
+            </div>
+          ) : <EmptyState title="No notifications" />}
+        </Card>
+      </div>
+    </>
+  );
+};
+
+const Dashboard = () => {
+  const { user } = useAuth();
+  const isStaff = user.role !== 'employee';
+  const dash = useAsync(() => (isStaff ? getDashboard() : Promise.resolve({ data: { data: null } })), [isStaff], { select: (r) => r.data.data });
+  // First name, skipping titles such as "Dr."
+  const first = user.name.split(/\s+/).find((w) => !/^(dr|mr|mrs|ms|prof)\.?$/i.test(w)) || user.name;
+
+  return (
+    <div className="page-content">
+      <PageHeader
+        eyebrow={new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}
+        title={`${greeting()}, ${first}`}
+        subtitle={isStaff
+          ? (dash.data?.scope === 'department' ? `Here’s the status of ${user.department?.name || 'your department'}’s first aid kits.` : `Here’s the first aid readiness of ${user.company?.name || 'your organisation'}.`)
+          : 'Your workplace safety at a glance.'}
+        actions={isStaff && (
+          <>
+            <button className="btn btn-secondary" onClick={() => dash.reload()} disabled={dash.loading}><RefreshCw size={15} className={dash.loading ? 'spinning' : ''} /> Refresh</button>
+            <Link to="/kits" className="btn btn-primary"><Boxes size={16} /> Manage kits</Link>
+          </>
+        )}
+      />
+      {!isStaff && <EmployeeDashboard user={user} />}
+      {isStaff && dash.loading && !dash.data && (
+        <>
+          <SkeletonStats count={6} />
+          <div className="dash-grid">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="card"><Skeleton height={180} /></div>)}</div>
+        </>
+      )}
+      {isStaff && dash.error && !dash.data && <div className="card"><ErrorState error={dash.error} onRetry={dash.reload} /></div>}
+      {isStaff && dash.data && <StaffDashboard data={dash.data} user={user} />}
     </div>
   );
 };

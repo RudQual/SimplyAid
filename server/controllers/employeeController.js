@@ -28,12 +28,45 @@ const fileFilter = (req, file, cb) => {
 
 const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
+const { companyIdOf, departmentIdOf, isValidId, escapeRegex, ApiError } = require('../utils/http');
+const { audit } = require('../utils/notificationService');
+
+/** Load a user of the requester's company by Mongo id. */
+// Always returns a chainable query; malformed ids simply match nothing (→ 404).
+const findCompanyUser = (req, id) => User.findOne({ _id: isValidId(String(id)) ? id : null, company: companyIdOf(req) });
+
+/**
+ * Admins/doctors may manage anyone in their company; managers only users of
+ * their own department; everyone may manage themselves.
+ */
+const canManage = (req, user) => {
+  if (req.user._id.toString() === user._id.toString()) return true;
+  if (['admin', 'doctor'].includes(req.user.role)) return true;
+  if (req.user.role === 'manager') {
+    const dept = departmentIdOf(req);
+    const userDept = user.department && (user.department._id || user.department);
+    return Boolean(dept && userDept && String(dept) === String(userDept));
+  }
+  return false;
+};
+
+// Emergency-relevant subset shown to any colleague who scans an employee QR.
+const EMERGENCY_FIELDS = ['_id', 'name', 'employeeId', 'department', 'designation', 'profilePhoto', 'bloodGroup',
+  'knownAllergies', 'chronicConditions', 'currentMedications', 'emergencyContact', 'disabilityInfo', 'role',
+  'profileCompleted', 'profileCompletionPercentage', 'factoryLocation'];
+const emergencyView = (user) => {
+  const obj = user.toJSON ? user.toJSON() : user;
+  const out = {};
+  EMERGENCY_FIELDS.forEach((k) => { if (obj[k] !== undefined) out[k] = obj[k]; });
+  return out;
+};
+
 // @desc    Get full employee profile
 // @route   GET /api/employees/profile/:id
 // @access  Protected (self or admin/safety_officer)
 exports.getEmployeeProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id)
+    const user = await findCompanyUser(req, req.params.id)
       .select('+qrCodeData')
       .populate('company', 'name code')
       .populate('department', 'name code');
@@ -44,7 +77,7 @@ exports.getEmployeeProfile = async (req, res, next) => {
 
     // Employees can only view their own profile
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
+    const isAdmin = !isSelf && canManage(req, user);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized to view this profile' });
     }
@@ -61,7 +94,7 @@ exports.getEmployeeProfile = async (req, res, next) => {
 exports.getEmployeeByQr = async (req, res, next) => {
   try {
     const { employeeId } = req.params;
-    const user = await User.findOne({ employeeId })
+    const user = await User.findOne({ employeeId: String(employeeId), company: companyIdOf(req) })
       .populate('company', 'name code')
       .populate('department', 'name code');
 
@@ -83,7 +116,7 @@ exports.getEmployeeByQr = async (req, res, next) => {
       ipAddress: req.ip || req.connection?.remoteAddress
     });
 
-    res.json({ success: true, data: user });
+    res.json({ success: true, data: canManage(req, user) ? user : emergencyView(user) });
   } catch (error) {
     next(error);
   }
@@ -94,11 +127,14 @@ exports.getEmployeeByQr = async (req, res, next) => {
 // @access  Admin only
 exports.regenerateEmployeeQr = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('+qrCodeData');
+    const user = await findCompanyUser(req, req.params.id).select('+qrCodeData');
     if (!user) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
+    if (!canManage(req, user)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
     const qrData = await regenerateQrCode(user);
     user.qrCodeId = qrData.qrCodeId;
     user.qrCodeData = qrData.qrCodeData;
@@ -114,6 +150,7 @@ exports.regenerateEmployeeQr = async (req, res, next) => {
       },
       message: 'QR code regenerated successfully'
     });
+    audit(req, { action: 'Regenerated employee QR code', entity: 'User', entityId: user._id, entityLabel: user.email });
   } catch (error) {
     next(error);
   }
@@ -124,13 +161,13 @@ exports.regenerateEmployeeQr = async (req, res, next) => {
 // @access  Protected (self or admin)
 exports.downloadQr = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await findCompanyUser(req, req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
+    const isAdmin = !isSelf && canManage(req, user);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -154,13 +191,13 @@ exports.uploadPhoto = [
   upload.single('photo'),
   async (req, res, next) => {
     try {
-      const user = await User.findById(req.params.id);
+      const user = await findCompanyUser(req, req.params.id);
       if (!user) {
         return res.status(404).json({ success: false, message: 'Employee not found' });
       }
 
       const isSelf = req.user._id.toString() === user._id.toString();
-      const isAdmin = ['doctor', 'manager'].includes(req.user.role);
+      const isAdmin = !isSelf && canManage(req, user);
       if (!isSelf && !isAdmin) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
       }
@@ -171,8 +208,10 @@ exports.uploadPhoto = [
 
       // Delete old photo if it exists
       if (user.profilePhoto) {
-        const oldPath = path.join(__dirname, '..', user.profilePhoto);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        const uploadsDir = path.resolve(__dirname, '..', 'uploads', 'profiles');
+        const oldPath = path.resolve(__dirname, '..', '.' + user.profilePhoto);
+        // Only ever delete files inside the profile uploads directory
+        if (oldPath.startsWith(uploadsDir + path.sep) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
 
       user.profilePhoto = `/uploads/profiles/${req.file.filename}`;
@@ -190,7 +229,7 @@ exports.uploadPhoto = [
 // @access  Protected (self or admin)
 exports.getEmployeeCard = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id)
+    const user = await findCompanyUser(req, req.params.id)
       .select('+qrCodeData')
       .populate('company', 'name code')
       .populate('department', 'name code');
@@ -200,9 +239,16 @@ exports.getEmployeeCard = async (req, res, next) => {
     }
 
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
+    const isAdmin = !isSelf && canManage(req, user);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    // Older accounts may not have a QR yet — create it so the card is usable
+    if (!user.qrCodeData) {
+      const qr = await generateQrCode(user);
+      Object.assign(user, { qrCodeId: qr.qrCodeId, qrCodeData: qr.qrCodeData, qrCodeGeneratedAt: qr.qrCodeGeneratedAt });
+      await user.save();
     }
 
     res.json({ success: true, data: user });
@@ -220,7 +266,14 @@ exports.getScanHistory = async (req, res, next) => {
     const { employee, actionType, startDate, endDate, page = 1, limit = 25 } = req.query;
 
     const filter = { company: companyId };
-    if (employee) filter.employee = employee;
+    if (employee) {
+      if (!isValidId(String(employee))) return res.status(400).json({ success: false, message: 'Invalid employee' });
+      filter.employee = employee;
+    }
+    if (req.user.role === 'manager' && departmentIdOf(req)) {
+      filter.employee = { $in: await User.find({ company: companyId, department: departmentIdOf(req) }).distinct('_id') };
+      if (employee) filter.employee.$in = filter.employee.$in.filter((id) => String(id) === String(employee));
+    }
     if (actionType) filter.actionType = actionType;
     if (startDate || endDate) {
       filter.scanTime = {};
@@ -228,14 +281,15 @@ exports.getScanHistory = async (req, res, next) => {
       if (endDate) filter.scanTime.$lte = new Date(endDate);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit) || 25));
+    const skip = (Math.max(1, parseInt(page) || 1) - 1) * safeLimit;
     const [logs, total] = await Promise.all([
       QrScanLog.find(filter)
         .populate('employee', 'name employeeId profilePhoto')
         .populate('scannedBy', 'name role')
         .sort({ scanTime: -1 })
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(safeLimit),
       QrScanLog.countDocuments(filter)
     ]);
 
@@ -244,7 +298,7 @@ exports.getScanHistory = async (req, res, next) => {
       count: logs.length,
       total,
       page: parseInt(page),
-      pages: Math.ceil(total / parseInt(limit)),
+      pages: Math.max(1, Math.ceil(total / safeLimit)),
       data: logs
     });
   } catch (error) {
@@ -257,13 +311,13 @@ exports.getScanHistory = async (req, res, next) => {
 // @access  Protected (self or admin)
 exports.getEmployeeScanHistory = async (req, res, next) => {
   try {
-    const employee = await User.findById(req.params.employeeId);
+    const employee = await findCompanyUser(req, req.params.employeeId);
     if (!employee) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
     const isSelf = req.user._id.toString() === employee._id.toString();
-    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
+    const isAdmin = !isSelf && canManage(req, employee);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -284,13 +338,13 @@ exports.getEmployeeScanHistory = async (req, res, next) => {
 // @access  Protected (self or admin)
 exports.updateEmployeeProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await findCompanyUser(req, req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
     const isSelf = req.user._id.toString() === user._id.toString();
-    const isAdmin = ['doctor', 'manager'].includes(req.user.role);
+    const isAdmin = !isSelf && canManage(req, user);
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -300,7 +354,7 @@ exports.updateEmployeeProfile = async (req, res, next) => {
       // Personal
       'name', 'gender', 'dateOfBirth', 'bloodGroup', 'phone', 'emergencyContact',
       // Employment (normally admin only, but allowing based on requirements, or keeping some restricted)
-      'employeeId', 'department', 'designation', 'factoryLocation', 'shiftTiming', 'dateOfJoining', 'reportingManager',
+      'designation', 'factoryLocation', 'shiftTiming', 'dateOfJoining', 'reportingManager',
       // Medical
       'knownAllergies', 'chronicConditions', 'currentMedications', 'disabilityInfo', 'additionalMedicalNotes',
       // Safety
@@ -308,12 +362,29 @@ exports.updateEmployeeProfile = async (req, res, next) => {
       // Settings
       'preferredLanguage'
     ];
-    // Admins can update everything except password and system fields
-    const adminBlocked = ['password', '_id', 'qrCodeId', 'qrCodeData']; // Allow admin to change employeeId if needed
+    // Managers/doctors/admins may additionally maintain employment & certification data.
+    // Role, company, email and account status are changed only via /api/users.
+    const managerAllowed = [...selfAllowed, 'employeeId', 'department', 'firstAidCertified', 'certificationNumber', 'certificationExpiry'];
+    const allowed = isAdmin ? managerAllowed : selfAllowed;
+
+    if (isAdmin && req.body.department !== undefined && req.body.department !== '' && req.user.role === 'manager') {
+      // Managers cannot move people out of their own department
+      if (String(req.body.department) !== String(departmentIdOf(req))) delete req.body.department;
+    }
+    if (req.body.department) {
+      const Department = require('../models/Department');
+      if (!isValidId(String(req.body.department)) || !(await Department.exists({ _id: req.body.department, company: companyIdOf(req) }))) {
+        return res.status(400).json({ success: false, message: 'Invalid department' });
+      }
+    }
+    if (req.body.employeeId && isAdmin && req.body.employeeId !== user.employeeId) {
+      if (await User.exists({ _id: { $ne: user._id }, company: user.company, employeeId: String(req.body.employeeId) })) {
+        return res.status(409).json({ success: false, message: 'This employee ID is already in use' });
+      }
+    }
 
     for (const [key, value] of Object.entries(req.body)) {
-      if (adminBlocked.includes(key)) continue;
-      if (!isAdmin && !selfAllowed.includes(key)) continue;
+      if (!allowed.includes(key)) continue;
       
       // Handle empty strings for ObjectId fields like department
       if (key === 'department' && value === '') {
@@ -324,7 +395,8 @@ exports.updateEmployeeProfile = async (req, res, next) => {
     }
 
     await user.save();
-    
+    audit(req, { action: 'Updated employee profile', entity: 'User', entityId: user._id, entityLabel: user.email });
+
     // Repopulate for response
     await user.populate('company', 'name code');
     await user.populate('department', 'name code');
@@ -393,30 +465,32 @@ exports.validateQrScan = async (req, res, next) => {
 
     let user = null;
 
+    const scope = { company: companyIdOf(req) };
+    const safeStr = (v) => (typeof v === 'string' || typeof v === 'number' ? String(v) : undefined);
     // 1. Try finding by qrCodeId if provided
-    if (qrCodeId) {
-      user = await User.findOne({ qrCodeId })
+    if (safeStr(qrCodeId)) {
+      user = await User.findOne({ ...scope, qrCodeId: safeStr(qrCodeId) })
         .populate('company', 'name code')
         .populate('department', 'name');
     }
 
     // 2. Fallback: try finding by userId and employeeId
-    if (!user && targetUserId && targetEmpId) {
-      user = await User.findOne({ _id: targetUserId, employeeId: targetEmpId })
+    if (!user && isValidId(safeStr(targetUserId) || '') && safeStr(targetEmpId)) {
+      user = await User.findOne({ ...scope, _id: targetUserId, employeeId: safeStr(targetEmpId) })
         .populate('company', 'name code')
         .populate('department', 'name');
     }
 
     // 3. Fallback: try finding by employeeId alone
-    if (!user && targetEmpId) {
-      user = await User.findOne({ employeeId: targetEmpId })
+    if (!user && safeStr(targetEmpId)) {
+      user = await User.findOne({ ...scope, employeeId: safeStr(targetEmpId) })
         .populate('company', 'name code')
         .populate('department', 'name');
     }
 
     // 4. Fallback: try finding by userId alone
-    if (!user && targetUserId) {
-      user = await User.findOne({ _id: targetUserId })
+    if (!user && isValidId(safeStr(targetUserId) || '')) {
+      user = await User.findOne({ ...scope, _id: targetUserId })
         .populate('company', 'name code')
         .populate('department', 'name');
     }
@@ -425,9 +499,10 @@ exports.validateQrScan = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Invalid or expired QR Code' });
     }
 
-    // Auto-heal qrCodeId if missing in database
-    if (!user.qrCodeId && qrCodeId) {
-      user.qrCodeId = qrCodeId;
+    // A QR that carries a qrCodeId must match the employee's current code
+    // (regenerating a QR invalidates the old printed one).
+    if (qrCodeId && user.qrCodeId && String(qrCodeId) !== user.qrCodeId) {
+      return res.status(400).json({ success: false, message: 'This QR code has been replaced. Please use the employee\'s latest ID card.' });
     }
 
     // Verify IDs match to prevent spoofing (only if provided in payload and different from found user)
@@ -452,8 +527,7 @@ exports.validateQrScan = async (req, res, next) => {
       console.error('Failed to log scan event:', logErr.message);
     }
 
-    user.lastQrScanAt = new Date();
-    await user.save();
+    await User.updateOne({ _id: user._id }, { $set: { lastQrScanAt: new Date() } });
 
     res.json({ 
       success: true, 

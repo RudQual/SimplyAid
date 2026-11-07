@@ -1,9 +1,11 @@
-const router = require('express').Router();
-const { createCompany, getCompanies, getCompany, updateCompany, deleteCompany } = require('../controllers/companyController');
+const express = require('express');
 const { protect, authorize } = require('../middleware/auth');
+const c = require('../controllers/companyController');
 
+const router = express.Router();
 router.use(protect);
-router.route('/').get(authorize('doctor', 'manager'), getCompanies).post(authorize('doctor', 'manager'), createCompany);
-router.route('/:id').get(getCompany).put(authorize('doctor', 'manager'), updateCompany).delete(authorize('doctor', 'manager'), deleteCompany);
+
+router.route('/').get(c.getCompanies).post(authorize('admin'), c.createCompany);
+router.route('/:id').get(c.getCompany).put(authorize('doctor'), c.updateCompany).delete(authorize('admin'), c.deleteCompany);
 
 module.exports = router;

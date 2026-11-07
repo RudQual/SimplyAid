@@ -94,15 +94,8 @@ const treatmentRecordSchema = new mongoose.Schema({
 // Auto-generate treatment ID
 treatmentRecordSchema.pre('save', async function() {
   if (!this.treatmentId) {
-    const year = new Date().getFullYear();
-    const count = await mongoose.model('TreatmentRecord').countDocuments({
-      company: this.company,
-      createdAt: {
-        $gte: new Date(`${year}-01-01`),
-        $lt: new Date(`${year + 1}-01-01`)
-      }
-    });
-    this.treatmentId = `TRT-${year}-${String(count + 1).padStart(4, '0')}`;
+    const Counter = require('./Counter');
+    this.treatmentId = await Counter.nextYearlyId({ prefix: 'TRT', model: 'TreatmentRecord', field: 'treatmentId', companyId: this.company });
   }
 });
 

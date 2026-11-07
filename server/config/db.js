@@ -1,32 +1,21 @@
 const mongoose = require('mongoose');
 
-const connectDB = async (retries = 5) => {
-  while (retries > 0) {
+mongoose.set('strictQuery', true);
+
+/** Connect to MongoDB, retrying a few times before giving up. */
+const connectDB = async (uri = process.env.MONGO_URI, retries = 5) => {
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
-      const conn = await mongoose.connect(process.env.MONGO_URI, {
-        serverSelectionTimeoutMS: 5000
-      });
-      console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-      
-      // Drop the old index if it exists so Mongoose can rebuild it with the new partialFilterExpression
-      try {
-        await mongoose.connection.db.collection('users').dropIndex('employeeId_1_company_1');
-        console.log('🗑️ Dropped old employeeId_1_company_1 index to update it');
-      } catch (err) {
-        // Index might not exist or already dropped, ignore
-      }
-      return; // Exit loop on success
+      const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000, autoIndex: false });
+      console.log(`✅ MongoDB connected: ${conn.connection.host}/${conn.connection.name}`);
+      return conn;
     } catch (error) {
-      console.error(`❌ MongoDB Connection Error: ${error.message}`);
-      retries -= 1;
-      if (retries === 0) {
-        console.error('All retries failed. Exiting...');
-        process.exit(1);
-      }
-      console.log(`Retrying connection... (${retries} retries left)`);
-      await new Promise(res => setTimeout(res, 2000));
+      console.error(`❌ MongoDB connection error (attempt ${attempt}/${retries}): ${error.message}`);
+      if (attempt === retries) throw error;
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
+  return null;
 };
 
 module.exports = connectDB;
