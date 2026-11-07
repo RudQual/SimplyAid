@@ -1,3 +1,5 @@
+import { hindiLabel, tr } from './i18n';
+
 /** Formatting helpers and status vocabularies shared across pages. */
 
 const LABELS = {
@@ -42,6 +44,8 @@ const LABELS = {
 
 export const labelize = (value) => {
   if (value === null || value === undefined || value === '') return '—';
+  const hi = hindiLabel(value);
+  if (hi) return hi;
   if (LABELS[value]) return LABELS[value];
   const s = String(value).replace(/_/g, ' ');
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -69,10 +73,10 @@ export const toInputDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : 
 export const timeAgo = (d) => {
   if (!d) return '';
   const diff = (Date.now() - new Date(d).getTime()) / 1000;
-  if (diff < 45) return 'just now';
-  if (diff < 3600) return `${Math.round(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.round(diff / 3600)} h ago`;
-  if (diff < 86400 * 7) return `${Math.round(diff / 86400)} d ago`;
+  if (diff < 45) return tr('time.justNow');
+  if (diff < 3600) return tr('time.min', { n: Math.round(diff / 60) });
+  if (diff < 86400) return tr('time.h', { n: Math.round(diff / 3600) });
+  if (diff < 86400 * 7) return tr('time.d', { n: Math.round(diff / 86400) });
   return formatDate(d);
 };
 

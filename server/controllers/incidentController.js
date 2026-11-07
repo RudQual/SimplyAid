@@ -30,7 +30,8 @@ const severityToAlert = (s) => (s === 'fatal' ? 'critical' : s === 'serious' ? '
 const visibilityFilter = (req) => {
   const filter = { company: companyIdOf(req) };
   const scope = departmentScope(req);
-  if (scope) filter.department = scope;
+  // Managers see their department, plus any incident they were alerted to as a responder.
+  if (scope) filter.$or = [{ department: scope }, { responders: req.user._id }];
   if (req.user.role === 'employee') {
     filter.$or = [{ reportedBy: req.user._id }];
     if (req.user.employeeId) filter.$or.push({ 'injuredPerson.employeeId': req.user.employeeId });
@@ -38,11 +39,14 @@ const visibilityFilter = (req) => {
   return filter;
 };
 
+const isResponder = (incident, userId) => (incident.responders || []).some((r) => String(r._id || r) === String(userId));
+
 const loadIncident = async (req, id, { forManager = false } = {}) => {
   if (!isValidId(id)) throw ApiError.notFound('Incident not found');
   const incident = await Incident.findOne({ _id: id, ...visibilityFilter(req) });
   if (!incident) throw ApiError.notFound('Incident not found');
-  if (forManager && req.user.role === 'manager' && departmentIdOf(req) && String(incident.department) !== String(departmentIdOf(req))) {
+  if (forManager && req.user.role === 'manager' && departmentIdOf(req)
+    && String(incident.department) !== String(departmentIdOf(req)) && !isResponder(incident, req.user._id)) {
     throw ApiError.forbidden('Managers can only act on incidents in their own department');
   }
   return incident;
@@ -132,28 +136,31 @@ exports.createIncident = async (req, res) => {
   const isManagerAssisted = data.reportMode === 'manager_assisted';
   if (!data.outcome) data.outcome = 'pending_confirmation';
 
+  // Notifications: department managers (or all managers if none), doctors for serious/fatal
+  let managers = await User.find({ company: companyId, role: 'manager', department: data.department, isActive: true }).select('_id');
+  if (!managers.length) managers = await User.find({ company: companyId, role: 'manager', isActive: true }).select('_id');
+  const managerIds = managers.map((m) => m._id).filter((id) => String(id) !== String(req.user._id));
+
   const incident = new Incident({
     ...data,
     company: companyId,
     reportedBy: req.user._id,
     pendingManagerAssist: isManagerAssisted,
+    responders: managerIds,
     statusHistory: [{ status: 'reported', changedBy: req.user._id, notes: isManagerAssisted ? 'Employee requested manager assistance to fill report' : 'Incident reported' }]
   });
   await incident.save();
 
   const warning = await deductSafely(incident, req.user);
-
-  // Notifications: department managers (or all managers if none), doctors for serious/fatal
-  let managers = await User.find({ company: companyId, role: 'manager', department: incident.department, isActive: true }).select('_id');
-  if (!managers.length) managers = await User.find({ company: companyId, role: 'manager', isActive: true }).select('_id');
-  const managerIds = managers.map((m) => m._id).filter((id) => String(id) !== String(req.user._id));
   const base = { company: companyId, relatedModel: 'Incident', relatedId: incident._id };
 
   if (isManagerAssisted) {
     await createAlert({
       ...base, recipients: managerIds, type: 'report_pending', severity: 'warning', priority: 'high',
       title: `Action required: fill incident report for ${incident.injuredPerson.name}`,
-      message: `${incident.injuredPerson.name} (${incident.injuredPerson.employeeId || 'N/A'}) needs help filling report ${incident.incidentId}. Please visit them on-site.`
+      message: `${incident.injuredPerson.name} (${incident.injuredPerson.employeeId || 'N/A'}) needs help filling report ${incident.incidentId}. Please visit them on-site.`,
+      titleHi: `ज़रूरी: ${incident.injuredPerson.name} की घटना रिपोर्ट भरें`,
+      messageHi: `${incident.injuredPerson.name} को रिपोर्ट ${incident.incidentId} भरने में मदद चाहिए। कृपया मौके पर जाएँ।`
     });
   } else {
     await createAlert({
@@ -191,7 +198,13 @@ exports.createSOSIncident = async (req, res) => {
   if (!immediateManager) immediateManager = await User.findOne({ company: companyId, role: 'manager', isActive: true });
 
   const location = user.factoryLocation || 'Unknown — SOS triggered';
+  // Every manager is alerted about an SOS, so every manager must be able to open it.
+  const allManagers = await findRecipients(companyId, { roles: ['manager'] });
+  const responders = [...new Set([...(immediateManager ? [String(immediateManager._id)] : []), ...allManagers.map(String)])]
+    .filter((id) => id !== String(user._id));
   const incident = await Incident.create({
+    isSOS: true,
+    responders,
     company: companyId,
     reportedBy: user._id,
     injuredPerson: { name: user.name, employeeId: user.employeeId, department: departmentId, gender: user.gender, designation: user.designation },
@@ -214,7 +227,9 @@ exports.createSOSIncident = async (req, res) => {
     await createAlert({
       ...base, recipients: [immediateManager._id], type: 'report_pending',
       title: `SOS EMERGENCY from ${user.name}`,
-      message: `${user.name} (${user.employeeId || 'N/A'}), ${user.designation || 'Employee'} in ${deptName}, triggered SOS at ${location}. Report ${incident.incidentId}. Go to them immediately.`
+      message: `${user.name} (${user.employeeId || 'N/A'}), ${user.designation || 'Employee'} in ${deptName}, triggered SOS at ${location}. Report ${incident.incidentId}. Go to them immediately.`,
+      titleHi: `${user.name} की ओर से SOS आपातकाल`,
+      messageHi: `${user.name} (${user.employeeId || 'N/A'}), ${deptName}, ने ${location} पर SOS दबाया है। रिपोर्ट ${incident.incidentId}। तुरंत उनके पास पहुँचें।`
     });
   }
   const others = (await findRecipients(companyId, { roles: ['manager', 'doctor', 'admin'] }))
@@ -222,7 +237,9 @@ exports.createSOSIncident = async (req, res) => {
   await createAlert({
     ...base, recipients: others, type: 'incident_alert',
     title: `SOS: ${user.name} needs emergency help`,
-    message: `Emergency incident ${incident.incidentId} at ${location}. Prepare for medical response.`
+    message: `Emergency incident ${incident.incidentId} at ${location}. Prepare for medical response.`,
+    titleHi: `SOS: ${user.name} को तुरंत मदद चाहिए`,
+    messageHi: `${location} पर आपातकालीन घटना ${incident.incidentId}। मेडिकल सहायता के लिए तैयार रहें।`
   });
 
   audit(req, { action: 'Triggered SOS', entity: 'Incident', entityId: incident._id, entityLabel: incident.incidentId });
@@ -243,6 +260,8 @@ exports.getIncidents = async (req, res) => {
   Object.entries(map).forEach(([q, f]) => { const v = qs(req.query[q]); if (v) filter[f] = v; });
   const fwd = qs(req.query.forwardedToDoctor);
   if (fwd !== undefined) filter.forwardedToDoctor = fwd === 'true';
+  const sos = qs(req.query.isSOS);
+  if (sos !== undefined) filter.isSOS = sos === 'true';
   const pending = qs(req.query.pendingManagerAssist);
   if (pending !== undefined) filter.pendingManagerAssist = pending === 'true';
   const reportable = qs(req.query.reportable);
@@ -311,9 +330,12 @@ exports.updateIncident = async (req, res) => {
 // @route GET /api/incidents/stats/summary
 exports.getIncidentStats = async (req, res) => {
   const vis = visibilityFilter(req);
-  const baseMatch = { company: new mongoose.Types.ObjectId(String(vis.company)) };
-  if (vis.department) baseMatch.department = new mongoose.Types.ObjectId(String(vis.department));
-  if (vis.$or) baseMatch.$or = vis.$or;
+  const oid = (v) => new mongoose.Types.ObjectId(String(v));
+  const baseMatch = { company: oid(vis.company) };
+  // Aggregations don't cast types, so convert ids in the visibility clauses.
+  if (vis.$or) {
+    baseMatch.$or = vis.$or.map((c) => (c.department ? { department: oid(c.department) } : c.responders ? { responders: oid(c.responders) } : c));
+  }
   const period = Math.min(3650, Math.max(1, parseInt(qs(req.query.period), 10) || 30));
   const startDate = new Date(Date.now() - period * 86400000);
   const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);

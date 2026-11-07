@@ -1,8 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  loginUser as loginAPI, signupUser as signupAPI, quickLoginUser as quickLoginAPI, getMe, logoutUser, tokenStore
+  updateMyProfile, loginUser as loginAPI, signupUser as signupAPI, quickLoginUser as quickLoginAPI, getMe, logoutUser, tokenStore
 } from '../services/api';
-import translations from '../utils/translations';
+import { getLang, setLang, hasStoredLang, translate } from '../utils/i18n';
 
 const AuthContext = createContext(null);
 
@@ -29,18 +29,20 @@ const CAN = {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lang, setLang] = useState(() => localStorage.getItem('simplyaid_lang') || 'en');
+  const [lang, setLangState] = useState(getLang);
 
-  const t = useCallback((path) => {
-    let val = translations[lang];
-    for (const k of path.split('.')) val = val?.[k];
-    if (val) return val;
-    let fallback = translations.en;
-    for (const k of path.split('.')) fallback = fallback?.[k];
-    return fallback || path;
-  }, [lang]);
+  /** t('dash.greeting', { name }) — falls back to English, then to `fallback`, then to the key. */
+  const t = useCallback((path, vars, fallback) => translate(lang, path, vars, fallback), [lang]);
 
-  const switchLang = useCallback((l) => { setLang(l); localStorage.setItem('simplyaid_lang', l); }, []);
+  const signedIn = useRef(false);
+  const switchLang = useCallback((l, { sync = true } = {}) => {
+    // Update the module copy first so labelize()/timeAgo() agree on the next render.
+    setLang(l);
+    setLangState(getLang());
+    // Remember the choice on the account too (best effort).
+    if (sync && signedIn.current) updateMyProfile({ preferredLanguage: getLang() }).catch(() => {});
+  }, []);
+  useEffect(() => { signedIn.current = Boolean(user); }, [user]);
 
   useEffect(() => {
     if (!tokenStore.get()) { setLoading(false); return; }
@@ -53,7 +55,10 @@ export const AuthProvider = ({ children }) => {
   const handleAuthResponse = useCallback((res) => {
     tokenStore.set(res.data.token);
     setUser(res.data.data);
-    if (res.data.data.preferredLanguage) switchLang(res.data.data.preferredLanguage);
+    // A language picked on this device (e.g. on the sign-in page) wins; otherwise use the account's.
+    if (hasStoredLang()) {
+      if (res.data.data.preferredLanguage !== getLang()) updateMyProfile({ preferredLanguage: getLang() }).catch(() => {});
+    } else if (res.data.data.preferredLanguage) switchLang(res.data.data.preferredLanguage, { sync: false });
     return res.data;
   }, [switchLang]);
 

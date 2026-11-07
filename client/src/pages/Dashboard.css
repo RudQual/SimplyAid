@@ -42,3 +42,48 @@
   .attention-kits, .status-legend { grid-template-columns: minmax(0, 1fr); }
   .quick-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ─── Header: a dated register entry rather than a hero ────────────────── */
+.dash-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 22px; border-bottom: 3px double var(--slate-300); }
+.dash-head .page-title { font-size: 2.2rem; }
+.dash-date { font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+:lang(hi) .dash-date { font-family: var(--font); text-transform: none; letter-spacing: 0; font-size: 0.85rem; }
+
+/* ─── Employee home: numbered duties + SOS note ─────────────────────────── */
+.emp-top { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 20px; align-items: stretch; }
+.duty-list { list-style: none; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+.duty-list li + li { border-top: 1px solid var(--slate-150); }
+.duty-row { display: flex; align-items: center; gap: 18px; padding: 16px 20px; color: inherit; }
+.duty-row:hover { background: var(--slate-50); color: inherit; }
+.duty-no { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-ochre); font-weight: 600; width: 22px; }
+.duty-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.duty-text strong { font-family: var(--font-display); font-size: 1.18rem; font-weight: 600; color: var(--text-main); }
+.duty-text span { font-size: 0.86rem; color: var(--text-muted); }
+.duty-arrow { color: var(--slate-400); transition: transform 0.12s ease, color 0.12s ease; }
+.duty-row:hover .duty-arrow { transform: translateX(3px); color: var(--text-main); }
+.sos-note { position: relative; align-self: start; padding: 22px 22px 22px 26px; border-radius: var(--radius-lg); background: var(--danger-600); color: #fff3f1; overflow: hidden; }
+.sos-note::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; background: repeating-linear-gradient(-45deg, #1d1f1b 0 7px, #f2c230 7px 14px); }
+.sos-note svg { margin-bottom: 10px; }
+.sos-note h3 { font-family: var(--font-display); font-size: 1.4rem; color: #fff; margin-bottom: 8px; }
+.sos-note p { font-size: 0.9rem; line-height: 1.55; }
+
+/* ─── Open SOS strip for managers / doctors ─────────────────────────────── */
+.sos-strip { border: 1px solid var(--danger-600); border-left-width: 6px; border-radius: var(--radius-sm); background: var(--bg-card); margin-bottom: 20px; overflow: hidden; }
+.sos-strip-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; background: var(--danger-600); color: #fff; }
+.sos-strip-head strong { font-family: var(--font-display); font-size: 1.1rem; }
+.sos-strip-head span { font-size: 0.86rem; opacity: 0.9; }
+.sos-strip-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 10px 16px; border-top: 1px solid var(--danger-100); color: inherit; font-size: 0.9rem; }
+.sos-strip-row:hover { background: var(--danger-50); color: inherit; }
+.sos-strip-loc { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); min-width: 0; }
+.sos-strip-go { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--danger-700); }
+
+@media (max-width: 900px) {
+  .emp-top { grid-template-columns: minmax(0, 1fr); }
+  .sos-strip-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .sos-strip-row .mono, .sos-strip-row .faint { display: none; }
+  .sos-strip-loc { grid-column: 1 / -1; order: 3; }
+}
+@media (max-width: 560px) {
+  .dash-head .page-title { font-size: 1.6rem; }
+  .duty-row { padding: 14px 16px; gap: 12px; }
+}

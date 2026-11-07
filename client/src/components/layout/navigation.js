@@ -9,54 +9,54 @@ import {
  */
 export const NAV_SECTIONS = [
   {
-    title: 'Overview',
+    title: 'Overview', tkey: 'nav.overview',
     items: [
-      { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-      { to: '/notifications', label: 'Notifications', icon: Bell, badge: 'notifications' }
+      { to: '/', label: 'Dashboard', tkey: 'nav.dashboard', icon: LayoutDashboard, end: true },
+      { to: '/notifications', label: 'Notifications', tkey: 'nav.notifications', icon: Bell, badge: 'notifications' }
     ]
   },
   {
-    title: 'Operations',
+    title: 'Operations', tkey: 'nav.operations',
     items: [
-      { to: '/incidents/new', label: 'Report incident', icon: FilePlus2, roles: ['employee', 'manager'] },
-      { to: '/incidents', label: 'Incidents', icon: AlertTriangle, end: true },
-      { to: '/reviews', label: 'Review queue', icon: ClipboardCheck, roles: ['doctor', 'manager', 'admin'] },
-      { to: '/treatments', label: 'Treatments', icon: Stethoscope, roles: ['doctor', 'admin'] },
-      { to: '/qr-scan', label: 'QR scan', icon: ScanLine }
+      { to: '/incidents/new', label: 'Report incident', tkey: 'nav.reportIncident', icon: FilePlus2, roles: ['employee', 'manager'] },
+      { to: '/incidents', label: 'Incidents', tkey: 'nav.incidents', icon: AlertTriangle, end: true },
+      { to: '/reviews', label: 'Review queue', tkey: 'nav.reviews', icon: ClipboardCheck, roles: ['doctor', 'manager', 'admin'] },
+      { to: '/treatments', label: 'Treatments', tkey: 'nav.treatments', icon: Stethoscope, roles: ['doctor', 'admin'] },
+      { to: '/qr-scan', label: 'QR scan', tkey: 'nav.qrScan', icon: ScanLine }
     ]
   },
   {
-    title: 'Inventory',
+    title: 'Inventory', tkey: 'nav.inventoryGroup',
     items: [
-      { to: '/kits', label: 'First aid kits', icon: Boxes, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/inventory', label: 'Inventory', icon: Package, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/expiry', label: 'Expiry tracking', icon: CalendarClock, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/stock-movements', label: 'Stock movements', icon: ArrowLeftRight, roles: ['admin', 'doctor', 'manager'] }
+      { to: '/kits', label: 'First aid kits', tkey: 'nav.kits', icon: Boxes, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/inventory', label: 'Inventory', tkey: 'nav.inventory', icon: Package, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/expiry', label: 'Expiry tracking', tkey: 'nav.expiry', icon: CalendarClock, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/stock-movements', label: 'Stock movements', tkey: 'nav.stockMovements', icon: ArrowLeftRight, roles: ['admin', 'doctor', 'manager'] }
     ]
   },
   {
-    title: 'Compliance',
+    title: 'Compliance', tkey: 'nav.complianceGroup',
     items: [
-      { to: '/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/inspections', label: 'Inspections', icon: SearchCheck, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/reports', label: 'Reports', icon: FileBarChart, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/analytics', label: 'Analytics', icon: LineChart, roles: ['admin', 'doctor', 'manager'] }
+      { to: '/compliance', label: 'Compliance', tkey: 'nav.compliance', icon: ShieldCheck, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/inspections', label: 'Inspections', tkey: 'nav.inspections', icon: SearchCheck, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/reports', label: 'Reports', tkey: 'nav.reports', icon: FileBarChart, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/analytics', label: 'Analytics', tkey: 'nav.analytics', icon: LineChart, roles: ['admin', 'doctor', 'manager'] }
     ]
   },
   {
-    title: 'Administration',
+    title: 'Administration', tkey: 'nav.administration',
     items: [
-      { to: '/employees', label: 'People', icon: Users, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/departments', label: 'Departments', icon: Building2, roles: ['admin', 'doctor'] },
-      { to: '/scan-history', label: 'Scan history', icon: QrCode, roles: ['admin', 'doctor', 'manager'] },
-      { to: '/activity', label: 'Activity log', icon: History, roles: ['admin', 'doctor'] }
+      { to: '/employees', label: 'People', tkey: 'nav.people', icon: Users, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/departments', label: 'Departments', tkey: 'nav.departments', icon: Building2, roles: ['admin', 'doctor'] },
+      { to: '/scan-history', label: 'Scan history', tkey: 'nav.scanHistory', icon: QrCode, roles: ['admin', 'doctor', 'manager'] },
+      { to: '/activity', label: 'Activity log', tkey: 'nav.activity', icon: History, roles: ['admin', 'doctor'] }
     ]
   },
   {
-    title: 'Account',
+    title: 'Account', tkey: 'nav.account',
     items: [
-      { to: '/profile', label: 'My profile', icon: UserRound },
-      { to: '/settings', label: 'Settings', icon: Settings }
+      { to: '/profile', label: 'My profile', tkey: 'nav.profile', icon: UserRound },
+      { to: '/settings', label: 'Settings', tkey: 'nav.settings', icon: Settings }
     ]
   }
 ];

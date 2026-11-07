@@ -22,7 +22,7 @@ exports.getDashboard = async (req, res) => {
   if (departmentId) boxFilter.department = departmentId;
 
   const incidentMatch = { company: companyId };
-  if (departmentId) incidentMatch.department = toObjectId(departmentId);
+  if (departmentId) incidentMatch.$or = [{ department: toObjectId(departmentId) }, { responders: req.user._id }];
   if (role === 'employee') incidentMatch.reportedBy = req.user._id;
 
   const [boxes, inventory, compliance, openIncidents, incidents30, alerts, unreadCount] = await Promise.all([

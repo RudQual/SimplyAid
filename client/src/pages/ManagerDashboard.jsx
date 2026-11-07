@@ -25,7 +25,7 @@ const EMPTY_FILL = {
 };
 
 const ManagerDashboard = () => {
-  const { user } = useAuth();
+  const { user, t } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fillIncidentId = searchParams.get('fillIncidentId');
@@ -173,12 +173,12 @@ const ManagerDashboard = () => {
     <div className="page-content">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Incident review queue</h1>
-          <p className="page-subtitle">Confirm reports from your department and complete them on-site when employees need help.</p>
+          <h1 className="page-title">{t('review.title')}</h1>
+          <p className="page-subtitle">{t('review.subtitle')}</p>
         </div>
         <div className="stats-badge" style={{ cursor: 'pointer' }} onClick={() => loadAll()}>
           <AlertTriangle size={18} />
-          <span>{totalPendingCount} Pending</span>
+          <span>{t('review.pending', { n: totalPendingCount })}</span>
         </div>
       </div>
 
@@ -189,7 +189,7 @@ const ManagerDashboard = () => {
               <Activity size={20} />
             </div>
             <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '8px' }}>{stats.total || 0}</div>
-            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Incidents (30d)</div>
+            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('review.total30')}</div>
           </div>
           
           <div className="stat-card" style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -197,7 +197,7 @@ const ManagerDashboard = () => {
               <AlertTriangle size={20} />
             </div>
             <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '8px' }}>{stats.openCases || 0}</div>
-            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Open Cases</div>
+            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('review.openCases')}</div>
           </div>
 
           <div className="stat-card" style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -205,7 +205,7 @@ const ManagerDashboard = () => {
               <Clock size={20} />
             </div>
             <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', marginTop: '8px' }}>{stats.totalDaysLost || 0}</div>
-            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Days Lost (30d)</div>
+            <div className="stat-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('review.daysLost30')}</div>
           </div>
         </div>
       )}
@@ -216,7 +216,7 @@ const ManagerDashboard = () => {
           onClick={() => setActiveTab('pending')}
           style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'pending' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'pending' ? 'var(--accent)' : 'var(--text-muted)', fontWeight: activeTab === 'pending' ? '600' : '400', cursor: 'pointer', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}
         >
-          Pending Actions
+          {t('review.pendingTab')}
           {totalPendingCount > 0 && <span style={{ background: 'var(--accent)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '700' }}>{totalPendingCount}</span>}
         </button>
         <button 
@@ -224,7 +224,7 @@ const ManagerDashboard = () => {
           onClick={() => setActiveTab('history')}
           style={{ padding: '12px 16px', background: 'none', border: 'none', borderBottom: activeTab === 'history' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'history' ? 'var(--accent)' : 'var(--text-muted)', fontWeight: activeTab === 'history' ? '600' : '400', cursor: 'pointer', fontSize: '0.95rem' }}
         >
-          Confirmed & History
+          {t('review.historyTab')}
         </button>
       </div>
 
@@ -234,8 +234,8 @@ const ManagerDashboard = () => {
         totalPendingCount === 0 ? (
           <div className="card" style={{ padding: '60px 24px', textAlign: 'center' }}>
             <ClipboardCheck size={48} style={{ color: 'var(--accent)', marginBottom: 16 }} />
-            <h3 style={{ margin: '0 0 8px', color: 'var(--text-main)' }}>All Clear!</h3>
-            <p style={{ margin: 0, color: 'var(--text-muted)' }}>No pending incidents require your attention.</p>
+            <h3 style={{ margin: '0 0 8px', color: 'var(--text-main)' }}>{t('review.allClear')}</h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>{t('review.allClearText')}</p>
           </div>
         ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -246,10 +246,10 @@ const ManagerDashboard = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316', animation: 'pulse 1.5s infinite' }}></div>
                 <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  Needs Your Help — Employee Could Not Fill the Report
+                  {t('review.needsHelp')}
                 </h2>
                 <span style={{ marginLeft: 'auto', padding: '3px 10px', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 20, fontSize: '0.78rem', fontWeight: 700, color: '#f97316' }}>
-                  {pendingAssist.length} urgent
+                  {t('review.urgent', { n: pendingAssist.length })}
                 </span>
               </div>
 
@@ -261,15 +261,16 @@ const ManagerDashboard = () => {
                       {/* assist banner */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '8px 14px', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.25)', borderRadius: 10 }}>
                         <AlertTriangle size={16} color="#f97316" />
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f97316' }}>
-                          Employee was unable to fill this report — please visit them and complete it below.
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: incident.isSOS ? 'var(--danger-700)' : '#c2410c' }}>
+                          {incident.isSOS ? t('review.sosTitle') : t('review.assistBanner')}
                         </span>
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, minWidth: 250 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent)', fontSize: '0.9rem' }}>{incident.incidentId}</span>
+                            <span className="mono strong" style={{ fontSize: '0.9rem' }}>{incident.incidentId}</span>
+                            {incident.isSOS && <span className="badge badge-sos">{t('sos.badge')}</span>}
                           </div>
                           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -282,7 +283,7 @@ const ManagerDashboard = () => {
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           <button className="btn btn-secondary" onClick={() => navigate(`/incidents/${incident._id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Eye size={16} /> View
+                            <Eye size={16} /> {t('review.view')}
                           </button>
                           <button
                             className="btn"
@@ -290,7 +291,7 @@ const ManagerDashboard = () => {
                             onClick={() => fillTarget?._id === incident._id ? closeFillForm() : openFillForm(incident)}
                           >
                             <FileEdit size={16} />
-                            {fillTarget?._id === incident._id ? 'Close Form' : 'Fill Report'}
+                            {fillTarget?._id === incident._id ? t('review.closeForm') : t('review.fill')}
                             <ChevronDown size={14} style={{ transform: fillTarget?._id === incident._id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                           </button>
                         </div>
@@ -482,7 +483,7 @@ const ManagerDashboard = () => {
 
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           <button className="btn btn-secondary" onClick={() => navigate(`/incidents/${incident._id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Eye size={16} /> View
+                            <Eye size={16} /> {t('review.view')}
                           </button>
                           <button
                             className="btn"
@@ -541,7 +542,7 @@ const ManagerDashboard = () => {
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button className="btn btn-secondary" onClick={() => navigate(`/incidents/${incident._id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Eye size={16} /> View
+                            <Eye size={16} /> {t('review.view')}
                           </button>
                           <button className="btn btn-primary" onClick={() => openConfirmModal(incident)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <Send size={16} /> Confirm &amp; Send
@@ -591,7 +592,7 @@ const ManagerDashboard = () => {
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button className="btn btn-secondary" onClick={() => navigate(`/incidents/${incident._id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Eye size={16} /> View Details
+                          <Eye size={16} /> {t('review.view')} Details
                         </button>
                       </div>
                     </div>

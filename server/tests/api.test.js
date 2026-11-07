@@ -358,6 +358,30 @@ describe('Incidents', () => {
     assert.ok(mgr.body.data.every((i) => i.department.name === 'Production'));
   });
 
+  test('an SOS can be opened and handled by every manager it alerts, even outside the department', async () => {
+    const sos = await api.post('/api/incidents/sos').set(auth(tokens.employee));
+    assert.equal(sos.status, 201, JSON.stringify(sos.body));
+    const id = sos.body.data._id;
+    assert.equal(sos.body.data.isSOS, true);
+
+    // The Administration manager was alerted, so the link in the notification must work for them.
+    const note = await Notification.findOne({ recipient: A.byRole('manager', 1)._id, relatedId: id });
+    assert.ok(note, 'other-department manager was notified');
+    assert.ok(note.titleHi, 'notification carries a Hindi title');
+    assert.equal((await api.get(note.link.replace(/^/, '/api')).set(auth(tokens.otherManager))).status, 200);
+
+    const list = await api.get('/api/incidents?isSOS=true').set(auth(tokens.otherManager));
+    assert.ok(list.body.data.some((i) => i._id === id), 'SOS appears in their incident list');
+
+    const fill = await api.put(`/api/incidents/${id}/manager-fill`).set(auth(tokens.otherManager))
+      .send({ description: 'Twisted ankle on the stairs', location: 'Stairwell B', severity: 'moderate', incidentType: 'injury' });
+    assert.equal(fill.status, 200, JSON.stringify(fill.body));
+
+    // Managers who were not alerted still cannot see other departments' incidents.
+    const plain = await api.post('/api/incidents').set(auth(tokens.doctor)).send({ severity: 'minor', description: 'Paper cut', location: 'Office', department: A.admin._id.toString() });
+    assert.equal((await api.get(`/api/incidents/${plain.body.data._id}`).set(auth(tokens.manager))).status, 404);
+  });
+
   test('Form 18 PDF can be generated and marks the incident', async () => {
     const inc = await api.post('/api/incidents').set(auth(tokens.doctor)).send({ severity: 'fatal', description: 'Fatal fall from height', location: 'Roof', department: A.prod._id.toString() });
     assert.equal(inc.body.data.isReportable, true);

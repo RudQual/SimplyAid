@@ -69,6 +69,22 @@ const backfillMandatoryItems = async () => {
   return r.modifiedCount;
 };
 
+// Incidents created before responders existed: grant access to the managers who were
+// actually alerted about them (otherwise an SOS from another department stays hidden).
+const backfillIncidentResponders = async () => {
+  const User = require('../models/User');
+  const legacy = await Incident.find({ responders: { $exists: false } }).select('_id statusHistory').lean();
+  let n = 0;
+  for (const inc of legacy) {
+    const alerted = await Notification.distinct('recipient', { relatedModel: 'Incident', relatedId: inc._id });
+    const managers = alerted.length ? await User.find({ _id: { $in: alerted }, role: 'manager' }).distinct('_id') : [];
+    const isSOS = (inc.statusHistory || []).some((h) => /^SOS Emergency/i.test(h.notes || ''));
+    await Incident.updateOne({ _id: inc._id }, { $set: { responders: managers, isSOS } });
+    n += 1;
+  }
+  return n;
+};
+
 const runMigrations = async () => {
   // Load every model so all of their indexes are built
   const fs = require('fs');
@@ -83,7 +99,8 @@ const runMigrations = async () => {
     legacyKits: await migrateLegacyStock(),
     legacyIncidents: await markLegacyIncidentDeductions(),
     notificationCategories: await backfillNotificationCategories(),
-    mandatoryItems: await backfillMandatoryItems()
+    mandatoryItems: await backfillMandatoryItems(),
+    incidentResponders: await backfillIncidentResponders()
   };
   const changed = Object.entries(results).filter(([, v]) => v > 0);
   if (changed.length) console.log('🔧 Data migrations applied:', Object.fromEntries(changed));

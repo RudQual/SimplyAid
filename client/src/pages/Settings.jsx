@@ -7,7 +7,7 @@ import { PageHeader, Card, Field, Spinner, Segmented } from '../components/ui';
 import { errorMessage, labelize, formatDateTime } from '../utils/format';
 
 const Settings = () => {
-  const { user, lang, switchLang, updateSession } = useAuth();
+  const { user, lang, switchLang, updateSession, t } = useAuth();
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [show, setShow] = useState(false);
   const [errors, setErrors] = useState({});
@@ -39,32 +39,32 @@ const Settings = () => {
 
   return (
     <div className="page-content" style={{ maxWidth: 1000 }}>
-      <PageHeader title="Settings" subtitle="Your account, security and display preferences." />
+      <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
       <div className="grid-2">
         <div className="stack">
-          <Card title="Account" icon={Building2}>
+          <Card title={t('settings.account')} icon={Building2}>
             <div className="detail-list" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <div className="detail-row"><span className="detail-label">Name</span><span className="detail-value">{user.name}</span></div>
-              <div className="detail-row"><span className="detail-label">Email</span><span className="detail-value">{user.email}</span></div>
-              <div className="detail-row"><span className="detail-label">Role</span><span className="detail-value"><span className={`badge badge-${user.role}`}>{labelize(user.role)}</span></span></div>
-              <div className="detail-row"><span className="detail-label">Department</span><span className="detail-value">{user.department?.name || '—'}</span></div>
-              <div className="detail-row"><span className="detail-label">Company</span><span className="detail-value">{user.company?.name || '—'}</span></div>
-              <div className="detail-row"><span className="detail-label">Last sign-in</span><span className="detail-value">{formatDateTime(user.lastLoginAt)}</span></div>
+              <div className="detail-row"><span className="detail-label">{t('settings.name')}</span><span className="detail-value">{user.name}</span></div>
+              <div className="detail-row"><span className="detail-label">{t('settings.email')}</span><span className="detail-value">{user.email}</span></div>
+              <div className="detail-row"><span className="detail-label">{t('settings.role')}</span><span className="detail-value"><span className={`badge badge-${user.role}`}>{labelize(user.role)}</span></span></div>
+              <div className="detail-row"><span className="detail-label">{t('settings.department')}</span><span className="detail-value">{user.department?.name || '—'}</span></div>
+              <div className="detail-row"><span className="detail-label">{t('settings.company')}</span><span className="detail-value">{user.company?.name || '—'}</span></div>
+              <div className="detail-row"><span className="detail-label">{t('settings.lastSignIn')}</span><span className="detail-value">{formatDateTime(user.lastLoginAt)}</span></div>
             </div>
           </Card>
-          <Card title="Language / भाषा" icon={Globe} subtitle="Applies to translated labels in the interface.">
+          <Card title={t('settings.language')} icon={Globe} subtitle={t('settings.languageSub')}>
             <Segmented value={lang} onChange={switchLang} options={[{ value: 'en', label: 'English' }, { value: 'hi', label: 'हिन्दी' }]} />
           </Card>
         </div>
-        <Card title="Change password" icon={Lock} subtitle="Changing your password signs you out on every other device.">
+        <Card title={t('settings.changePw')} icon={Lock} subtitle={t('settings.changePwSub')}>
           {errors.form && <div className="alert alert-danger mb-16">{errors.form}</div>}
           <form onSubmit={submit} noValidate>
-            <Field label="Current password" error={errors.currentPassword}><input type={show ? 'text' : 'password'} value={pw.currentPassword} onChange={set('currentPassword')} autoComplete="current-password" /></Field>
-            <Field label="New password" error={errors.newPassword} hint="At least 8 characters, including a letter and a number."><input type={show ? 'text' : 'password'} value={pw.newPassword} onChange={set('newPassword')} autoComplete="new-password" /></Field>
-            <Field label="Confirm new password" error={errors.confirm}><input type={show ? 'text' : 'password'} value={pw.confirm} onChange={set('confirm')} autoComplete="new-password" /></Field>
+            <Field label={t('settings.currentPw')} error={errors.currentPassword}><input type={show ? 'text' : 'password'} value={pw.currentPassword} onChange={set('currentPassword')} autoComplete="current-password" /></Field>
+            <Field label={t('settings.newPw')} error={errors.newPassword} hint={t('settings.pwHint')}><input type={show ? 'text' : 'password'} value={pw.newPassword} onChange={set('newPassword')} autoComplete="new-password" /></Field>
+            <Field label={t('settings.confirmPw')} error={errors.confirm}><input type={show ? 'text' : 'password'} value={pw.confirm} onChange={set('confirm')} autoComplete="new-password" /></Field>
             <div className="row-between">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShow((s) => !s)}>{show ? <EyeOff size={15} /> : <Eye size={15} />} {show ? 'Hide' : 'Show'} passwords</button>
-              <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <Spinner size="sm" light /> : <><ShieldCheck size={16} /> Update password</>}</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShow((s) => !s)}>{show ? <EyeOff size={15} /> : <Eye size={15} />} {show ? t('settings.hide') : t('settings.show')}</button>
+              <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <Spinner size="sm" light /> : <><ShieldCheck size={16} /> {t('settings.update')}</>}</button>
             </div>
           </form>
         </Card>

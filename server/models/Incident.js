@@ -207,7 +207,16 @@ const incidentSchema = new mongoose.Schema({
   pendingManagerAssist: {
     type: Boolean,
     default: false
-  }
+  },
+  // Raised with the SOS button
+  isSOS: {
+    type: Boolean,
+    default: false
+  },
+  // Managers who were alerted about this incident. They may view and act on it
+  // even when it belongs to another department (e.g. the employee's reporting
+  // manager sits in a different department, or an SOS goes to every manager).
+  responders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, {
   timestamps: true
 });
@@ -231,5 +240,6 @@ incidentSchema.index({ department: 1, status: 1 });
 incidentSchema.index({ severity: 1 });
 incidentSchema.index({ company: 1, dateTime: -1 });
 incidentSchema.index({ company: 1, reportedBy: 1 });
+incidentSchema.index({ company: 1, responders: 1 });
 
 module.exports = mongoose.model('Incident', incidentSchema);

@@ -39,16 +39,14 @@ const Incidents = () => {
   return (
     <div className="page-content">
       <div className="page-header">
-        <div><h1 className="page-title">{t('incidents.title')}</h1><p className="page-subtitle">Track and manage workplace incidents</p></div>
+        <div><h1 className="page-title">{t('incidents.title')}</h1><p className="page-subtitle">{t('incidents.subtitle')}</p></div>
         <button className="btn btn-primary" onClick={() => requireAuth(() => navigate('/incidents/new'))}><Plus size={18} />{t('incidents.new')}</button>
       </div>
 
       {selectedScanner && (
-        <div style={{ marginBottom: 20, padding: '12px 16px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Filter size={18} color="#6366f1" />
-          <span style={{ fontSize: '0.9rem', color: '#4b5563' }}>
-            Filtered by active scanner: <strong>{selectedScanner.location}</strong>
-          </span>
+        <div className="alert alert-info" style={{ marginBottom: 20 }}>
+          <Filter size={18} />
+          <span>{t('incidents.filteredBy')} <strong>{selectedScanner.location}</strong></span>
         </div>
       )}
 
@@ -82,7 +80,7 @@ const Incidents = () => {
 
       {/* Table */}
       {loading ? <div className="page-loader"><div className="spinner"></div></div> : (
-        <div className="table-container">
+        <div className="card card-flush table-container">
           <table className="data-table">
             <thead>
               <tr>
@@ -96,14 +94,14 @@ const Incidents = () => {
                 <tr><td colSpan={8} style={{textAlign:'center',padding:40,color:'var(--text-muted)'}}>{t('common.noData')}</td></tr>
               ) : incidents.map(inc => (
                 <tr key={inc._id} onClick={() => requireAuth(() => navigate(`/incidents/${inc._id}`))} style={{cursor:'pointer'}}>
-                  <td style={{fontWeight:600,color:'var(--accent)'}}>{inc.incidentId}</td>
+                  <td><span className="mono strong">{inc.incidentId}</span>{inc.isSOS && <span className="badge badge-sos" style={{ marginLeft: 8 }}>{t('sos.badge')}</span>}</td>
                   <td>{formatDate(inc.dateTime)}</td>
                   <td>{inc.injuredPerson?.name}</td>
                   <td>{inc.department?.name}</td>
                   <td><span className="badge badge-reported">{t(`incidents.${inc.incidentType}`)}</span></td>
                   <td><span className={`badge badge-${inc.severity}`}>{t(`incidents.${inc.severity}`)}</span></td>
                   <td><span className={`badge badge-${inc.status}`}>{t(`incidents.${inc.status}`)}</span></td>
-                  <td style={{textTransform:'capitalize'}}>{inc.outcome?.replace(/_/g,' ')}</td>
+                  <td>{t(`outcome.${inc.outcome}`, null, inc.outcome?.replace(/_/g,' '))}</td>
                 </tr>
               ))}
             </tbody>
@@ -115,7 +113,7 @@ const Incidents = () => {
       {totalPages > 1 && (
         <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:20}}>
           <button className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => setPage(p => p-1)}><ChevronLeft size={16} /></button>
-          <span style={{padding:'6px 14px',fontSize:'0.85rem',color:'var(--text-secondary)'}}>Page {page} of {totalPages}</span>
+          <span style={{padding:'6px 14px',fontSize:'0.85rem',color:'var(--text-secondary)'}}>{t('incidents.page', { page, pages: totalPages })}</span>
           <button className="btn btn-ghost btn-sm" disabled={page >= totalPages} onClick={() => setPage(p => p+1)}><ChevronRight size={16} /></button>
         </div>
       )}

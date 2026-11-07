@@ -8,6 +8,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { triggerSOS } from '../../services/api';
 import { useConfirm } from '../ui';
 import { errorMessage, initials, labelize, timeAgo } from '../../utils/format';
+import { notifText } from '../../utils/i18n';
 
 const useClickOutside = (ref, onOutside) => {
   useEffect(() => {
@@ -18,7 +19,7 @@ const useClickOutside = (ref, onOutside) => {
 };
 
 const Topbar = ({ collapsed, onMenu, onSearch }) => {
-  const { user, logout, lang, switchLang } = useAuth();
+  const { user, logout, lang, switchLang, t } = useAuth();
   const { scannersByDepartment, selectedScanner, setSelectedScanner, loadScanners } = useScanner();
   const { unreadCount, recent, open, readAll, refresh } = useNotifications();
   const confirm = useConfirm();
@@ -37,19 +38,19 @@ const Topbar = ({ collapsed, onMenu, onSearch }) => {
 
   const handleSOS = async () => {
     const ok = await confirm({
-      title: 'Send an SOS emergency alert?',
-      message: 'This immediately creates an emergency incident and alerts your manager, all managers and the medical team.',
-      confirmLabel: 'Send SOS',
+      title: t('sos.confirmTitle'),
+      message: t('sos.confirmMsg'),
+      confirmLabel: t('sos.confirmBtn'),
       tone: 'danger'
     });
     if (!ok) return;
     setSosBusy(true);
     try {
       const res = await triggerSOS();
-      toast.success(res.data.message || 'SOS sent', { duration: 6000 });
+      toast.success(lang === 'hi' ? t('sos.employeeBanner') : (res.data.message || t('sos.sent')), { duration: 6000 });
       if (res.data.data?._id) navigate(`/incidents/${res.data.data._id}`);
     } catch (err) {
-      toast.error(errorMessage(err, 'Could not send SOS — call for help directly.'));
+      toast.error(errorMessage(err, t('sos.failed')));
     } finally {
       setSosBusy(false);
     }
@@ -61,7 +62,7 @@ const Topbar = ({ collapsed, onMenu, onSearch }) => {
 
       <button className="global-search-trigger" onClick={onSearch} aria-label="Search">
         <Search size={16} />
-        <span className="label">Search kits, items, incidents, people…</span>
+        <span className="label">{t('top.search')}</span>
         <span className="kbd">Ctrl K</span>
       </button>
 
@@ -70,19 +71,19 @@ const Topbar = ({ collapsed, onMenu, onSearch }) => {
       <div className="navbar-actions">
         {/* Active location (scanner) — pre-fills incident reports */}
         <div className="dropdown">
-          <button className={`location-btn ${selectedScanner ? 'active' : ''}`} onClick={() => toggle('location')} title="Your current location">
+          <button className={`location-btn ${selectedScanner ? 'active' : ''}`} onClick={() => toggle('location')} title={t('top.currentLocation')}>
             <MapPin size={15} />
-            <span className="label truncate">{selectedScanner ? selectedScanner.location : 'Set location'}</span>
+            <span className="label truncate">{selectedScanner ? selectedScanner.location : t('top.setLocation')}</span>
             <ChevronDown size={14} className="label" />
           </button>
           {menu === 'location' && (
             <div className="dropdown-menu" style={{ width: 300, maxHeight: 380, overflowY: 'auto' }}>
-              <div className="dropdown-label">Current location</div>
-              <p className="xsmall muted" style={{ padding: '0 10px 6px' }}>Used to pre-fill the location and department of incident reports.</p>
+              <div className="dropdown-label">{t('top.currentLocation')}</div>
+              <p className="xsmall muted" style={{ padding: '0 10px 6px' }}>{t('top.locationHint')}</p>
               {selectedScanner && (
-                <button className="dropdown-item danger" onClick={() => { setSelectedScanner(null); setMenu(null); }}><X size={15} /> Clear location</button>
+                <button className="dropdown-item danger" onClick={() => { setSelectedScanner(null); setMenu(null); }}><X size={15} /> {t('top.clearLocation')}</button>
               )}
-              {Object.keys(scannersByDepartment).length === 0 && <p className="small muted" style={{ padding: 10 }}>No scanner locations configured.</p>}
+              {Object.keys(scannersByDepartment).length === 0 && <p className="small muted" style={{ padding: 10 }}>{t('top.noLocations')}</p>}
               {Object.entries(scannersByDepartment).map(([dept, list]) => (
                 <div key={dept}>
                   <div className="dropdown-label">{dept}</div>
@@ -99,13 +100,13 @@ const Topbar = ({ collapsed, onMenu, onSearch }) => {
         </div>
 
         {['employee', 'manager'].includes(user?.role) && (
-          <button className="sos-btn" onClick={handleSOS} disabled={sosBusy} title="Emergency SOS">
-            <Siren size={16} /> <span className="label">{sosBusy ? 'Sending…' : 'SOS'}</span>
+          <button className="sos-btn" onClick={handleSOS} disabled={sosBusy} title="Emergency SOS / आपातकालीन SOS">
+            <Siren size={16} /> <span className="label">{sosBusy ? t('sos.sending') : t('sos.button')}</span>
           </button>
         )}
 
-        <button className="icon-btn" onClick={() => switchLang(lang === 'en' ? 'hi' : 'en')} title={lang === 'en' ? 'हिन्दी में देखें' : 'View in English'} aria-label="Switch language">
-          <Globe size={18} />
+        <button className="lang-btn" onClick={() => switchLang(lang === 'en' ? 'hi' : 'en')} title={t('top.switchLang')} aria-label={t('top.switchLang')}>
+          <Globe size={15} /> <span>{t('top.langShort')}</span>
         </button>
 
         {/* Notifications */}
@@ -117,28 +118,28 @@ const Topbar = ({ collapsed, onMenu, onSearch }) => {
           {menu === 'notifications' && (
             <div className="dropdown-menu notif-menu">
               <div className="notif-menu-header">
-                <strong>Notifications</strong>
+                <strong>{t('top.notifications')}</strong>
                 {unreadCount > 0 && (
                   <button className="btn btn-ghost btn-xs" onClick={async () => { try { await readAll(); } catch (e) { toast.error(errorMessage(e)); } }}>
-                    <CheckCheck size={14} /> Mark all read
+                    <CheckCheck size={14} /> {t('top.markAllRead')}
                   </button>
                 )}
               </div>
               <div className="notif-menu-list">
-                {recent.length === 0 && <p className="small muted" style={{ padding: 24, textAlign: 'center' }}>You're all caught up.</p>}
+                {recent.length === 0 && <p className="small muted" style={{ padding: 24, textAlign: 'center' }}>{t('top.caughtUp')}</p>}
                 {recent.map((n) => (
-                  <button key={n._id} className={`notif-row ${n.isRead ? '' : 'unread'}`} onClick={() => { setMenu(null); open(n); }}>
+                  <button key={n._id} className={`notif-row ${n.isRead ? '' : 'unread'} ${n.title?.startsWith('SOS') ? 'sos' : ''}`} onClick={() => { setMenu(null); open(n); }}>
                     <span className={`notif-sev ${n.isRead ? 'read' : n.severity}`} />
                     <span style={{ minWidth: 0 }}>
-                      <span className="notif-row-title" style={{ display: 'block' }}>{n.title}</span>
-                      <span className="notif-row-msg">{n.message}</span>
+                      <span className="notif-row-title" style={{ display: 'block' }}>{notifText(n, 'title')}</span>
+                      <span className="notif-row-msg">{notifText(n, 'message')}</span>
                       <span className="notif-row-time" style={{ display: 'block' }}>{timeAgo(n.createdAt)}</span>
                     </span>
                   </button>
                 ))}
               </div>
               <div className="notif-menu-footer">
-                <Link to="/notifications" className="card-link" onClick={() => setMenu(null)}>View all notifications</Link>
+                <Link to="/notifications" className="card-link" onClick={() => setMenu(null)}>{t('top.viewAll')}</Link>
               </div>
             </div>
           )}
@@ -158,10 +159,10 @@ const Topbar = ({ collapsed, onMenu, onSearch }) => {
                 <div className="row" style={{ marginTop: 6 }}><span className={`badge badge-${user?.role}`}>{labelize(user?.role)}</span>{user?.company?.name && <span className="xsmall muted truncate">{user.company.name}</span>}</div>
               </div>
               <div className="dropdown-divider" />
-              <button className="dropdown-item" onClick={() => { setMenu(null); navigate('/profile'); }}><UserRound size={16} /> My profile</button>
-              <button className="dropdown-item" onClick={() => { setMenu(null); navigate('/settings'); }}><Settings size={16} /> Settings</button>
+              <button className="dropdown-item" onClick={() => { setMenu(null); navigate('/profile'); }}><UserRound size={16} /> {t('top.myProfile')}</button>
+              <button className="dropdown-item" onClick={() => { setMenu(null); navigate('/settings'); }}><Settings size={16} /> {t('top.settings')}</button>
               <div className="dropdown-divider" />
-              <button className="dropdown-item danger" onClick={logout}><LogOut size={16} /> Sign out</button>
+              <button className="dropdown-item danger" onClick={logout}><LogOut size={16} /> {t('top.signOut')}</button>
             </div>
           )}
         </div>

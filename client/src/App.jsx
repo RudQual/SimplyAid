@@ -62,6 +62,8 @@ const LegacyInspectRedirect = () => <Navigate to={`/kits/${useParams().id}/inspe
 const LegacyScanRedirect = () => <Navigate to={`/kits/code/${useParams().boxId}`} replace />;
 
 const AppLayout = () => {
+  // Subscribing to the auth context re-renders every page when the language is switched.
+  useAuth();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('simplyaid_sidebar') === 'collapsed');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -151,9 +153,9 @@ const App = () => (
           position="top-right"
           toastOptions={{
             duration: 3500,
-            style: { background: '#0f172a', color: '#f8fafc', borderRadius: '10px', fontSize: '0.9rem', padding: '10px 14px' },
-            success: { iconTheme: { primary: '#14b8a6', secondary: '#0f172a' } },
-            error: { iconTheme: { primary: '#f87171', secondary: '#0f172a' }, duration: 5000 }
+            style: { background: '#1d1f1b', color: '#fbf8f0', borderRadius: '4px', fontSize: '0.9rem', padding: '10px 14px' },
+            success: { iconTheme: { primary: '#5aa86f', secondary: '#1d1f1b' } },
+            error: { iconTheme: { primary: '#e2564d', secondary: '#1d1f1b' }, duration: 5000 }
           }}
         />
         <Suspense fallback={<PageLoader />}>

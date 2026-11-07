@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, createContext, useContext } f
 import { Link } from 'react-router-dom';
 import { X, Search, ChevronLeft, ChevronRight, AlertTriangle, Inbox, RefreshCw, ArrowLeft } from 'lucide-react';
 import { labelize, toneFor } from '../../utils/format';
+import { tr } from '../../utils/i18n';
 
 /* ─── Page structure ─────────────────────────────────────────────────────── */
 
@@ -97,9 +98,9 @@ export const EmptyState = ({ icon: Icon = Inbox, title, description, action }) =
 export const ErrorState = ({ error, onRetry }) => (
   <div className="empty-state">
     <div className="empty-state-icon tone-red"><AlertTriangle size={24} /></div>
-    <h3>Something went wrong</h3>
+    <h3>{tr('common.somethingWrong')}</h3>
     <p>{error || 'The data could not be loaded.'}</p>
-    {onRetry && <button className="btn btn-secondary btn-sm" onClick={onRetry}><RefreshCw size={14} /> Try again</button>}
+    {onRetry && <button className="btn btn-secondary btn-sm" onClick={onRetry}><RefreshCw size={14} /> {tr('common.tryAgain')}</button>}
   </div>
 );
 
@@ -181,10 +182,10 @@ export const Pagination = ({ page, pages, total, limit, onChange }) => {
   const to = Math.min(total, page * limit);
   return (
     <div className="pagination">
-      <span>Showing <strong>{from}–{to}</strong> of <strong>{total}</strong></span>
+      <span>{tr('common.showing', { from, to, total })}</span>
       <div className="pagination-buttons">
         <button className="btn btn-secondary btn-sm btn-icon" disabled={page <= 1} onClick={() => onChange(page - 1)} aria-label="Previous page"><ChevronLeft size={16} /></button>
-        <span>Page {page} of {pages}</span>
+        <span>{tr('common.pageOf', { page, pages })}</span>
         <button className="btn btn-secondary btn-sm btn-icon" disabled={page >= pages} onClick={() => onChange(page + 1)} aria-label="Next page"><ChevronRight size={16} /></button>
       </div>
     </div>
@@ -237,9 +238,9 @@ export const ConfirmProvider = ({ children }) => {
         size="sm"
         footer={(
           <>
-            <button className="btn btn-secondary" onClick={() => close(false)}>{state?.cancelLabel || 'Cancel'}</button>
+            <button className="btn btn-secondary" onClick={() => close(false)}>{state?.cancelLabel || tr('common.cancel')}</button>
             <button className={`btn ${state?.tone === 'danger' ? 'btn-danger' : 'btn-primary'}`} onClick={() => close(true)} autoFocus>
-              {state?.confirmLabel || 'Confirm'}
+              {state?.confirmLabel || tr('common.confirm')}
             </button>
           </>
         )}
